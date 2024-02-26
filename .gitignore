@@ -1,3 +1,5 @@
 .vscode/
 cpp/build/
 test_rosbags/
+simple_lib/build
+visual_odometry/build/
