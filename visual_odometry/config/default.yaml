@@ -1,0 +1,15 @@
+%YAML:1.0
+# data
+# the tum dataset directory, change it to yours! 
+# dataset_dir: /media/xiang/Data/Dataset/Kitti/dataset/sequences/00
+dataset_dir: /home/kodogyu/Datasets/KITTI/dataset/sequences/00
+
+# camera intrinsics
+camera.fx: 620.070
+camera.fy: 618.210
+camera.cx: 325.298
+camera.cy: 258.487
+
+num_features: 150
+num_features_init: 50
+num_features_tracking: 50
