@@ -2,9 +2,10 @@ project(playground_cpp)
 
 cmake_minimum_required(VERSION 3.16)
 
-find_package(Eigen3)
-find_package(GTSAM)
-find_package(OpenCV)
+find_package(Eigen3 REQUIRED)
+find_package(GTSAM REQUIRED)
+find_package(OpenCV REQUIRED)
+find_package(Sophus REQUIRED)
 
 include_directories(
     ${EIGEN3_INCLUDE_DIRS}
@@ -12,12 +13,16 @@ include_directories(
     ${OpenCV_INCLUDE_DIRS}
 )
 
+##=========================EXECUTABLES=========================##
 # STL files
 add_executable(basic_copy_array basic_copy_array.cpp)
+add_executable(basic_file basic_file.cpp)
 add_executable(basic_nothing basic_nothing.cpp)
+add_executable(basic_unordered_map basic_unordered_map.cpp)
 add_executable(chrono_measure_time chrono_measure_time.cpp)
 # eigen
 add_executable(eigen_transform eigen_transform.cpp)
+add_executable(eigen_basic eigen_basic.cpp)
 
 # GTSAM files
 add_executable(gtsam_pose gtsam_pose.cpp)
@@ -41,6 +46,10 @@ target_link_libraries(opencv_matchTemplate ${OpenCV_LIBS})
 
 add_executable(opencv_stereo_rectify opencv_stereo_rectify.cpp)
 target_link_libraries(opencv_stereo_rectify ${OpenCV_LIBS})
+
+# Sophus files
+add_executable(sophus_basic sophus_basic.cpp)
+target_link_libraries(sophus_basic Sophus::Sophus)
 
 # Applications
 add_executable(get_right_image get_right_image.cpp)
