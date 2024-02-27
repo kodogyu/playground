@@ -44,8 +44,8 @@ bool Dataset::Init() {
             projection_data[8], projection_data[9], projection_data[10];
         Vec3 t;
         t << projection_data[3], projection_data[7], projection_data[11];
-        t = K.inverse() * t;
-        K = K * 0.5;
+        // t = K.inverse() * t;
+        // K = K * 0.5;
         Camera::Ptr new_camera(new Camera(K(0, 0), K(1, 1), K(0, 2), K(1, 2),
                                           t.norm(), SE3(SO3(), t)));
         cameras_.push_back(new_camera);
@@ -57,32 +57,33 @@ bool Dataset::Init() {
 }
 
 Frame::Ptr Dataset::NextFrame() {
-    boost::format fmt("%s/%s_frames/%s%s.png");
     cv::Mat image_left, image_right;
+    std::ostringstream image_suffix;
     // read images
     image_left =
-        cv::imread((fmt % dataset_path_ % "left" % "left_image" % frame_ids_[current_image_index_]).str(),
+        cv::imread((dataset_path_ + "/left_frames/left_image" + frame_ids_[current_image_index_] + ".png"),
                    cv::IMREAD_GRAYSCALE);
     image_right =
-        cv::imread((fmt % dataset_path_ % "right" % "right_image" % frame_ids_[current_image_index_]).str(),
+        cv::imread((dataset_path_ + "/right_frames/right_image" + frame_ids_[current_image_index_] + ".png"),
                    cv::IMREAD_GRAYSCALE);
-
     if (image_left.data == nullptr || image_right.data == nullptr) {
         LOG(WARNING) << "cannot find images at index " << current_image_index_ 
                     << " frame_id: " << frame_ids_[current_image_index_]
-                    << " frame_name: " << fmt % dataset_path_ % "left" % "left_image" % frame_ids_[current_image_index_];
+                    << " frame_name: " << dataset_path_ + "/****_frames/****_image" + frame_ids_[current_image_index_] + ".png";
         return nullptr;
     }
 
-    cv::Mat image_left_resized, image_right_resized;
-    cv::resize(image_left, image_left_resized, cv::Size(), 0.5, 0.5,
-               cv::INTER_NEAREST);
-    cv::resize(image_right, image_right_resized, cv::Size(), 0.5, 0.5,
-               cv::INTER_NEAREST);
+    // cv::Mat image_left_resized, image_right_resized;
+    // cv::resize(image_left, image_left_resized, cv::Size(), 0.5, 0.5,
+    //            cv::INTER_NEAREST);
+    // cv::resize(image_right, image_right_resized, cv::Size(), 0.5, 0.5,
+    //            cv::INTER_NEAREST);
 
     auto new_frame = Frame::CreateFrame();
-    new_frame->left_img_ = image_left_resized;
-    new_frame->right_img_ = image_right_resized;
+    new_frame->left_img_ = image_left;
+    new_frame->right_img_ = image_right;
+    // new_frame->left_img_ = image_left_resized;
+    // new_frame->right_img_ = image_right_resized;
     current_image_index_++;
     return new_frame;
 }

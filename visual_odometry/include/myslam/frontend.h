@@ -7,6 +7,7 @@
 #include "myslam/common_include.h"
 #include "myslam/frame.h"
 #include "myslam/map.h"
+#include "myslam/logger.h"
 
 namespace myslam {
 
@@ -35,6 +36,8 @@ class Frontend {
     void SetBackend(std::shared_ptr<Backend> backend) { backend_ = backend; }
 
     void SetViewer(std::shared_ptr<Viewer> viewer) { viewer_ = viewer; }
+
+    void SetLogger(std::shared_ptr<Logger> logger) { logger_ = logger; }
 
     FrontendStatus GetStatus() const { return status_; }
 
@@ -121,6 +124,7 @@ class Frontend {
     Map::Ptr map_ = nullptr;
     std::shared_ptr<Backend> backend_ = nullptr;
     std::shared_ptr<Viewer> viewer_ = nullptr;
+    std::shared_ptr<Logger> logger_ = nullptr;
 
     SE3 relative_motion_;  // 현재 프레임과 이전 프레임 사이의 상대 모션으로, 현재 프레임의 초기 포즈 값을 추정하는 데 사용됩니다.
 

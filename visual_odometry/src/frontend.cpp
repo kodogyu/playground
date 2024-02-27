@@ -217,18 +217,9 @@ int Frontend::EstimateCurrentPose() {
     current_frame_->SetPose(vertex_pose->estimate());
 
     LOG(INFO) << "Current Pose = \n" << current_frame_->Pose().matrix();
+
     LOG(INFO) << "Logging pose...";
-    // log removing keyframe pose
-    std::ofstream log_file;
-    log_file.open("/home/kodogyu/slambook2/ch13/output_logs/paths.csv", std::ios::app);
-
-    auto pose = current_frame_->Pose();
-    Eigen::Quaterniond quat = pose.unit_quaternion();
-    Eigen::Vector3d trans = pose.translation();
-
-    log_file << quat.w() << "," << quat.x() << "," << quat.y() << "," << quat.z() << ",";  // rotation
-    log_file << trans.x() << "," << trans.y() << "," << trans.z() << std::endl;  // translation
-    log_file.close();
+    logger_->logPose(current_frame_->Pose());
 
     for (auto &feat : features) {
         if (feat->is_outlier_) {
@@ -346,9 +337,9 @@ int Frontend::FindFeaturesInRight() {
                          0.01),
         cv::OPTFLOW_USE_INITIAL_FLOW);
     
-    Mat right_image_kps;
-    current_frame_->right_img_.copyTo(right_image_kps);
-    cv::Point top_left, bottom_right;
+    // Mat right_image_kps;
+    // current_frame_->right_img_.copyTo(right_image_kps);
+    // cv::Point top_left, bottom_right;
 
     int num_good_pts = 0;
     for (size_t i = 0; i < status.size(); ++i) {
@@ -359,20 +350,20 @@ int Frontend::FindFeaturesInRight() {
             current_frame_->features_right_.push_back(feat);
             num_good_pts++;
 
-            top_left.x = kps_right[i].x - 2;
-            top_left.y = kps_right[i].y - 2;
-            bottom_right.x = kps_right[i].x + 2;
-            bottom_right.y = kps_right[i].y + 2;
-            cv::rectangle(right_image_kps, top_left, bottom_right, cv::Scalar(0, 255, 0));
+            // top_left.x = kps_right[i].x - 2;
+            // top_left.y = kps_right[i].y - 2;
+            // bottom_right.x = kps_right[i].x + 2;
+            // bottom_right.y = kps_right[i].y + 2;
+            // cv::rectangle(right_image_kps, top_left, bottom_right, cv::Scalar(0, 255, 0));
         } else {
             current_frame_->features_right_.push_back(nullptr);
         }
     }
     LOG(INFO) << "Find " << num_good_pts << " in the right image.";
 
-    // log right image
-    LOG(INFO) << "Logging right image...";
-    cv::imwrite("output_logs/right_images/right_image" + std::to_string(current_frame_->id_) + ".png", right_image_kps);
+    // log matched keypoint image
+    LOG(INFO) << "Logging Matched keypoint image...";
+    logger_->logKpImages(current_frame_);
 
     return num_good_pts;
 }
