@@ -2,6 +2,7 @@ project(playground_cpp)
 
 cmake_minimum_required(VERSION 3.16)
 
+##=========================DEPENDENCIES=========================##
 find_package(Eigen3 REQUIRED)
 find_package(GTSAM REQUIRED)
 find_package(OpenCV REQUIRED)
@@ -46,6 +47,9 @@ target_link_libraries(opencv_matchTemplate ${OpenCV_LIBS})
 
 add_executable(opencv_stereo_rectify opencv_stereo_rectify.cpp)
 target_link_libraries(opencv_stereo_rectify ${OpenCV_LIBS})
+
+add_executable(opencv_image_concat opencv_image_concat.cpp)
+target_link_libraries(opencv_image_concat ${OpenCV_LIBS})
 
 # Sophus files
 add_executable(sophus_basic sophus_basic.cpp)
