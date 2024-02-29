@@ -56,7 +56,8 @@ void VisualOdometry::Run() {
 }
 
 bool VisualOdometry::Step() {
-    Frame::Ptr new_frame = dataset_->NextFrame();
+    // Frame::Ptr new_frame = dataset_->NextFrame();
+    Frame::Ptr new_frame = dataset_->RosBagNextFrame();
     if (new_frame == nullptr) return false;
 
     auto t1 = std::chrono::steady_clock::now();

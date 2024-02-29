@@ -18,8 +18,8 @@ void Logger::logPose(const SE3 &pose) {
     Eigen::Quaterniond quat = pose.unit_quaternion();
     Eigen::Vector3d trans = pose.translation();
 
-    log_file_ << quat.w() << "," << quat.x() << "," << quat.y() << "," << quat.z() << ",";  // rotation
-    log_file_ << trans.x() << "," << trans.y() << "," << trans.z() << std::endl;  // translation
+    log_file_ << trans.x() << "," << trans.y() << "," << trans.z() << ",";  // translation
+    log_file_ << quat.w() << "," << quat.x() << "," << quat.y() << "," << quat.z() << std::endl;  // rotation
 }
 
 void Logger::logImage(const std::string filename, const cv::Mat image) {

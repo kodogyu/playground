@@ -4,7 +4,8 @@ namespace myslam {
 bool Config::SetParameterFile(const std::string &filename) {
     if (config_ == nullptr)
         config_ = std::shared_ptr<Config>(new Config);
-    config_->file_ = cv::FileStorage(filename.c_str(), cv::FileStorage::READ);
+    std::cout << "opencv version: " << CV_VERSION << std::endl;
+    config_->file_.open("/home/kodogyu/playground/visual_odometry/config/l515_stereo.yaml", cv::FileStorage::READ);
     if (config_->file_.isOpened() == false) {
         LOG(ERROR) << "parameter file " << filename << " does not exist.";
         config_->file_.release();

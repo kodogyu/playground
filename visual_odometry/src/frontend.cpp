@@ -295,10 +295,12 @@ int Frontend::DetectFeatures() {
     cv::Mat mask(current_frame_->left_img_.size(), CV_8UC1, 255);
     for (auto &feat : current_frame_->features_left_) {
         cv::rectangle(mask, feat->position_.pt - cv::Point2f(10, 10),
-                      feat->position_.pt + cv::Point2f(10, 10), 0, CV_FILLED);
+                      feat->position_.pt + cv::Point2f(10, 10), 0, cv::FILLED);
     }
 
     std::vector<cv::KeyPoint> keypoints;
+    // cv::Mat detecting_image;
+    // cv::cvtColor(current_frame_->left_img_, detecting_image, cv::COLOR_GRAY2BGR);
     gftt_->detect(current_frame_->left_img_, keypoints, mask);
     int cnt_detected = 0;
     for (auto &kp : keypoints) {
@@ -337,10 +339,6 @@ int Frontend::FindFeaturesInRight() {
                          0.01),
         cv::OPTFLOW_USE_INITIAL_FLOW);
     
-    // Mat right_image_kps;
-    // current_frame_->right_img_.copyTo(right_image_kps);
-    // cv::Point top_left, bottom_right;
-
     int num_good_pts = 0;
     for (size_t i = 0; i < status.size(); ++i) {
         if (status[i]) {
@@ -349,12 +347,6 @@ int Frontend::FindFeaturesInRight() {
             feat->is_on_left_image_ = false;
             current_frame_->features_right_.push_back(feat);
             num_good_pts++;
-
-            // top_left.x = kps_right[i].x - 2;
-            // top_left.y = kps_right[i].y - 2;
-            // bottom_right.x = kps_right[i].x + 2;
-            // bottom_right.y = kps_right[i].y + 2;
-            // cv::rectangle(right_image_kps, top_left, bottom_right, cv::Scalar(0, 255, 0));
         } else {
             current_frame_->features_right_.push_back(nullptr);
         }

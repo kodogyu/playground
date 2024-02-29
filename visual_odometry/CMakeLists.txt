@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 project(myslam)
 
 # set(CMAKE_BUILD_TYPE Release)
+set(CMAKE_BUILD_TYPE Debug)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -Wall")
 set(CMAKE_CXX_FLAGS_RELEASE  "-std=c++11 -O3 -fopenmp -pthread")
@@ -10,7 +11,6 @@ list(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
 set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 set(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/lib)
 
-message(STATUS "${CMAKE_BUILD_TYPE}")
 message(STATUS "${PROJECT_SOURCE_DIR}")
 
 ############### dependencies ######################
@@ -18,7 +18,8 @@ message(STATUS "${PROJECT_SOURCE_DIR}")
 include_directories("/usr/include/eigen3")
 
 # OpenCV
-find_package(OpenCV 3.1 REQUIRED)
+find_package(OpenCV 4.2 REQUIRED)
+# find_package(OpenCV 3.1 REQUIRED)
 include_directories(${OpenCV_INCLUDE_DIRS})
 
 # pangolin
@@ -49,16 +50,27 @@ include_directories(${GFLAGS_INCLUDE_DIRS})
 find_package(CSparse REQUIRED)
 include_directories(${CSPARSE_INCLUDE_DIR})
 
+# ROS
+find_package(roscpp REQUIRED)
+find_package(rosbag REQUIRED)
+find_package(cv_bridge REQUIRED)
+include_directories("/opt/ros/noetic/include")
+
+message(STATUS "opencv version: ${OpenCV_VERSION}")
+
 set(THIRD_PARTY_LIBS
-        ${OpenCV_LIBS}
-        ${Sophus_LIBRARIES}
-        ${Pangolin_LIBRARIES} GL GLU GLEW glut
-        g2o_core g2o_stuff g2o_types_sba g2o_solver_csparse g2o_csparse_extension
+${OpenCV_LIBS}
+${Sophus_LIBRARIES}
+${Pangolin_LIBRARIES} GL GLU GLEW glut
+g2o_core g2o_stuff g2o_types_sba g2o_solver_csparse g2o_csparse_extension
         ${GTEST_BOTH_LIBRARIES}
         ${GLOG_LIBRARIES}
         ${GFLAGS_LIBRARIES}
         pthread
         ${CSPARSE_LIBRARY}
+        ${roscpp_LIBRARIES}
+        ${rosbag_LIBRARIES}
+        ${cv_bridge_LIBRARIES}
         )
 
 enable_testing()

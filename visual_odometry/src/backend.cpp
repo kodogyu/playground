@@ -17,8 +17,11 @@ Backend::Backend() {
 }
 
 void Backend::UpdateMap() {
-    std::unique_lock<std::mutex> lock(data_mutex_);
+    LOG(INFO) << "UpdateMap start";
+    std::unique_lock<std::mutex> lock(data_mutex_);  // Optimize() 함수가 안끝난 상태에서 호출되면 segmentation fault 발생.
+    LOG(INFO) << "locked mutex";
     map_update_.notify_one();
+    LOG(INFO) << "UpdateMap end";
 }
 
 void Backend::Stop() {
@@ -32,10 +35,16 @@ void Backend::BackendLoop() {
         std::unique_lock<std::mutex> lock(data_mutex_);
         map_update_.wait(lock);
 
+        LOG(INFO) << "waiting done.";
+
         /// 백엔드는 활성화된 프레임과 랜드마크만 최적화합니다.
+        LOG(INFO) << "Getting active key frames";
         Map::KeyframesType active_kfs = map_->GetActiveKeyFrames();
+        LOG(INFO) << "Getting active map points";
         Map::LandmarksType active_landmarks = map_->GetActiveMapPoints();
+        LOG(INFO) << "Optimizing...";
         Optimize(active_kfs, active_landmarks);
+        LOG(INFO) << "Optimizing done.";
     }
 }
 

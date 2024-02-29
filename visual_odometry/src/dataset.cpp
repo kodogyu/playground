@@ -1,9 +1,10 @@
-#include "myslam/dataset.h"
-#include "myslam/frame.h"
-
 #include <boost/format.hpp>
 #include <fstream>
 #include <opencv2/opencv.hpp>
+
+#include "myslam/dataset.h"
+#include "myslam/frame.h"
+
 using namespace std;
 
 namespace myslam {
@@ -19,7 +20,18 @@ Dataset::Dataset(const std::string& dataset_path)
             frame_ids_.push_back(frame_id);
         }
         frame_ids_file.close();
+
+        // Open bag file
+        input_bag_.open(input_filename_, rosbag::bagmode::Read);
+        topics_.push_back(left_topic_);
+        topics_.push_back(right_topic_);
     }
+
+Dataset::~Dataset() {
+    // Close bag files
+    input_bag_.close();
+      
+}
 
 bool Dataset::Init() {
     // read camera intrinsics and extrinsics
@@ -73,12 +85,6 @@ Frame::Ptr Dataset::NextFrame() {
         return nullptr;
     }
 
-    // cv::Mat image_left_resized, image_right_resized;
-    // cv::resize(image_left, image_left_resized, cv::Size(), 0.5, 0.5,
-    //            cv::INTER_NEAREST);
-    // cv::resize(image_right, image_right_resized, cv::Size(), 0.5, 0.5,
-    //            cv::INTER_NEAREST);
-
     auto new_frame = Frame::CreateFrame();
     new_frame->left_img_ = image_left;
     new_frame->right_img_ = image_right;
@@ -86,6 +92,47 @@ Frame::Ptr Dataset::NextFrame() {
     // new_frame->right_img_ = image_right_resized;
     current_image_index_++;
     return new_frame;
+}
+
+Frame::Ptr Dataset::RosBagNextFrame() {
+    rosbag::View input_view(input_bag_, rosbag::TopicQuery(topics_));
+    cv::Mat image_left, image_right;
+    sensor_msgs::ImageConstPtr left_message_ptr, right_message_ptr;
+    cv_bridge::CvImagePtr left_image_ptr, right_image_ptr;
+    bool got_left_image = false;
+    bool got_right_image = false;
+
+    for (rosbag::MessageInstance const m : input_view) {
+        // left frame
+        if (m.getTopic() == left_topic_ && !got_left_image && m.getTime().toNSec() > last_timestamp_) {
+          left_message_ptr = m.instantiate<sensor_msgs::Image>();
+          left_image_ptr = cv_bridge::toCvCopy(left_message_ptr, sensor_msgs::image_encodings::MONO8);
+          left_image_ptr->image.copyTo(image_left);
+
+          got_left_image = true;
+        }
+        // right frame
+        if (m.getTopic() == right_topic_ && !got_right_image && m.getTime().toNSec() > last_timestamp_) {
+          right_message_ptr = m.instantiate<sensor_msgs::Image>();
+          right_image_ptr = cv_bridge::toCvCopy(right_message_ptr, sensor_msgs::image_encodings::MONO8);
+          right_image_ptr->image.copyTo(image_right);
+
+          got_right_image = true;
+        }
+
+        // both frames are received
+        if (got_left_image && got_right_image) {
+            auto new_frame = Frame::CreateFrame();
+            new_frame->left_img_ = image_left;
+            new_frame->right_img_ = image_right;
+            
+            current_image_index_++;
+            last_timestamp_ = m.getTime().toNSec();
+
+            return new_frame;
+        }
+      }
+
 }
 
 }  // namespace myslam

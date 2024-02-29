@@ -1,5 +1,10 @@
 #ifndef MYSLAM_DATASET_H
 #define MYSLAM_DATASET_H
+
+#include <rosbag/bag.h>
+#include <rosbag/view.h>
+#include <cv_bridge/cv_bridge.h>
+
 #include "myslam/camera.h"
 #include "myslam/common_include.h"
 #include "myslam/frame.h"
@@ -16,12 +21,14 @@ class Dataset {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW;
     typedef std::shared_ptr<Dataset> Ptr;
     Dataset(const std::string& dataset_path);
+    ~Dataset();
 
     /// 初始化，返回是否成功
     bool Init();
 
     /// create and return the next frame containing the stereo images
     Frame::Ptr NextFrame();
+    Frame::Ptr RosBagNextFrame();
 
     /// get camera by id
     Camera::Ptr GetCamera(int camera_id) const {
@@ -35,6 +42,17 @@ class Dataset {
     std::vector<Camera::Ptr> cameras_;
 
     std::vector<std::string> frame_ids_;
+
+    // ROS
+    // Bag file paths
+    std::string input_filename_ = "/home/kodogyu/Datasets/rosbags/l515_aligned_vertical_stereo.bag";
+    // Bag
+    rosbag::Bag input_bag_;
+    // Topics
+    std::string left_topic_ = "/camera/color/image_raw";
+    std::string right_topic_ = "/camera/color_right/image_raw";
+    std::vector<std::string> topics_;
+    long last_timestamp_;
 };
 }  // namespace myslam
 
