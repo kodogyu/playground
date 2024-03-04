@@ -81,7 +81,22 @@ bool Frontend::InsertKeyframe() {
               << current_frame_->keyframe_id_;
 
     SetObservationsForKeyFrame();
-    DetectFeatures();  // detect new features
+    // DetectFeatures();  // detect new features
+
+
+    std::vector<cv::KeyPoint> new_features;
+    int need_n_corners = std::max(
+        feature_detector_params_.max_features_per_frame_ - current_frame_->features_left_.size(), ulong(0));
+    new_features = featureDetection(*current_frame_, need_n_corners);
+
+    for (int i = 0; i < new_features.size(); i++) {
+        std::shared_ptr<Feature> new_feature = std::make_shared<Feature>();
+        new_feature->frame_ = current_frame_;
+        new_feature->position_ = new_features[i];
+        current_frame_->features_left_.push_back(new_feature);
+    }
+    LOG(INFO) << "Detect " << new_features.size() << " new features";
+    logger_->logImage("left_image" + std::to_string(current_frame_->id_), current_frame_->left_img_);
 
     // track in right image
     FindFeaturesInRight();
@@ -338,7 +353,7 @@ int Frontend::FindFeaturesInRight() {
         cv::TermCriteria(cv::TermCriteria::COUNT + cv::TermCriteria::EPS, 30,
                          0.01),
         cv::OPTFLOW_USE_INITIAL_FLOW);
-    
+
     int num_good_pts = 0;
     for (size_t i = 0; i < status.size(); ++i) {
         if (status[i]) {
@@ -355,7 +370,7 @@ int Frontend::FindFeaturesInRight() {
 
     // log matched keypoint image
     LOG(INFO) << "Logging Matched keypoint image...";
-    logger_->logKpImages(current_frame_);
+    logger_->logFeatureMatchImages(current_frame_);
 
     return num_good_pts;
 }
@@ -399,6 +414,138 @@ bool Frontend::BuildInitMap() {
 bool Frontend::Reset() {
     LOG(INFO) << "Reset is not implemented. ";
     return true;
+}
+
+
+// Source Code from Kimera-VIO
+// https://github.com/MIT-SPARK/Kimera-VIO
+
+
+std::vector<cv::KeyPoint> Frontend::featureDetection(const Frame& cur_frame,
+                                              const int& need_n_corners) {
+
+    cv::Mat mask(cur_frame.left_img_.size(), CV_8UC1, 255);
+    for (auto &feat : cur_frame.features_left_) {
+        cv::rectangle(mask, feat->position_.pt - cv::Point2f(10, 10),
+                      feat->position_.pt + cv::Point2f(10, 10), 0, cv::FILLED);
+        cv::circle(mask,
+                 feat->position_.pt,
+                 feature_detector_params_
+                     .min_distance_btw_tracked_and_detected_features_,
+                 cv::Scalar(0),
+                 cv::FILLED);
+    }
+
+  // Actual raw feature detection
+  std::vector<cv::KeyPoint> keypoints;
+    gftt_->detect(cur_frame.left_img_, keypoints, mask);
+  LOG(INFO) << "Number of points detected : " << keypoints.size();
+
+  LOG(INFO) << "Need n corners: " << need_n_corners;
+  // Tolerance of the number of returned points in percentage.
+  std::vector<cv::KeyPoint>& max_keypoints = keypoints;
+    static constexpr float tolerance = 0.1;
+    max_keypoints = suppressNonMax(
+        keypoints,
+        need_n_corners,
+        tolerance,
+        cur_frame.left_img_.cols,
+        cur_frame.left_img_.rows,
+        feature_detector_params_.nr_horizontal_bins_,
+        feature_detector_params_.nr_vertical_bins_,
+        feature_detector_params_.binning_mask_);
+  // NOTE: if we don't use max_suppression we may end with more corners than
+  // requested...
+
+  // TODO(Toni): we should be using cv::KeyPoint... not cv::Point2f...
+
+  return max_keypoints;
+}
+
+std::vector<cv::KeyPoint> Frontend::suppressNonMax(
+    const std::vector<cv::KeyPoint>& keyPoints,
+    const int& numRetPoints,
+    const float& tolerance,
+    const int& cols,
+    const int& rows,
+    const int& nr_horizontal_bins,
+    const int& nr_vertical_bins,
+    const Eigen::MatrixXd& binning_mask) {
+  if (keyPoints.size() == 0) {
+    LOG(WARNING) << "No keypoints for non-max suppression...";
+    return std::vector<cv::KeyPoint>();
+  }
+
+  // Sorting keypoints by deacreasing order of strength
+  VLOG(5) << "Sorting keypoints in decreasing order of strength.";
+  std::vector<int> responseVector;
+  for (unsigned int i = 0; i < keyPoints.size(); i++) {
+    responseVector.push_back(keyPoints[i].response);
+  }
+  std::vector<int> Indx(responseVector.size());
+  std::iota(std::begin(Indx), std::end(Indx), 0);
+  cv::sortIdx(responseVector, Indx, cv::SortFlags::SORT_DESCENDING);
+  std::vector<cv::KeyPoint> keyPointsSorted;
+  for (unsigned int i = 0; i < keyPoints.size(); i++) {
+    keyPointsSorted.push_back(keyPoints[Indx[i]]);
+  }
+
+  std::vector<cv::KeyPoint> keypoints;
+  VLOG(5) << "Starting Adaptive Non-Maximum Suppression.";
+    keypoints = binning(keyPointsSorted,
+                        numRetPoints,
+                        cols,
+                        rows,
+                        nr_horizontal_bins,
+                        nr_vertical_bins,
+                          binning_mask);
+  return keypoints;
+}
+
+std::vector<cv::KeyPoint> Frontend::binning(
+    const std::vector<cv::KeyPoint>& keyPoints,
+    const int& numKptsToRetain,
+    const int& imgCols,
+    const int& imgRows,
+    const int& nr_horizontal_bins,
+    const int& nr_vertical_bins,
+    const Eigen::MatrixXd& binning_mask) {
+  if (static_cast<size_t>(numKptsToRetain) > keyPoints.size()) {
+    return keyPoints;
+  }
+
+  float binRowSize = float(imgRows) / float(nr_vertical_bins);
+  float binColSize = float(imgCols) / float(nr_horizontal_bins);
+
+  // Note: features should be already sorted by score at this point from detect
+
+  // 0. count the number of valid bins (as specified by the user in the yaml
+  float nrActiveBins = binning_mask.sum();  // sum of 1's in binary mask
+
+  // 1. compute how many features we want to retain in each bin
+  // numRetPointsPerBin
+  const int numRetPointsPerBin =
+      std::round(float(numKptsToRetain) / float(nrActiveBins));
+
+  // 2. assign keypoints to bins and retain top numRetPointsPerBin for each bin
+  std::vector<cv::KeyPoint> binnedKpts;  // binned keypoints we want to output
+  Eigen::MatrixXd nrKptsInBin = Eigen::MatrixXd::Zero(
+      nr_vertical_bins,
+      nr_horizontal_bins);  // store number of kpts for each bin
+  for (size_t i = 0; i < keyPoints.size(); i++) {
+    const size_t binRowInd =
+        static_cast<size_t>(keyPoints[i].pt.y / binRowSize);
+    const size_t binColInd =
+        static_cast<size_t>(keyPoints[i].pt.x / binColSize);
+    // if bin is active and needs more keypoints
+    if (binning_mask(binRowInd, binColInd) == 1 &&
+        nrKptsInBin(binRowInd, binColInd) <
+            numRetPointsPerBin) {  // if we need more kpts in that bin
+      binnedKpts.push_back(keyPoints[i]);
+      nrKptsInBin(binRowInd, binColInd) += 1;
+    }
+  }
+  return binnedKpts;
 }
 
 }  // namespace myslam

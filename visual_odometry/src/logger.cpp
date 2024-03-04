@@ -27,7 +27,7 @@ void Logger::logImage(const std::string filename, const cv::Mat image) {
     cv::imwrite(log_path_ + filename, image);
 }
 
-void Logger::logKpImages(const Frame::Ptr frame) {
+void Logger::logFeatureMatchImages(const Frame::Ptr frame) {
     cv::Mat left_image, right_image;
     cv::cvtColor(frame->left_img_, left_image, cv::COLOR_GRAY2BGR);
     cv::cvtColor(frame->right_img_, right_image, cv::COLOR_GRAY2BGR);
@@ -49,11 +49,11 @@ void Logger::logKpImages(const Frame::Ptr frame) {
             right_kp = right_features[i]->position_.pt;
             right_kp.x += left_image.cols;
 
-            cv::rectangle(h_image, 
+            cv::rectangle(h_image,
                 left_kp - cv::Point(5, 5),
                 left_kp + cv::Point(5, 5),
                 cv::Scalar(0, 255, 0));  // green
-            cv::rectangle(h_image, 
+            cv::rectangle(h_image,
                 right_kp - cv::Point(5, 5),
                 right_kp + cv::Point(5, 5),
                 cv::Scalar(0, 255, 0));  // green
@@ -64,7 +64,7 @@ void Logger::logKpImages(const Frame::Ptr frame) {
                 right_features[i] == nullptr) {
             left_kp = left_features[i]->position_.pt;
 
-            cv::rectangle(h_image, 
+            cv::rectangle(h_image,
                 left_kp - cv::Point(5, 5),
                 left_kp + cv::Point(5, 5),
                 cv::Scalar(0, 0, 255));  // red
@@ -74,8 +74,8 @@ void Logger::logKpImages(const Frame::Ptr frame) {
                 right_features[i] != nullptr) {
             right_kp = right_features[i]->position_.pt;
             right_kp.x += left_image.cols;
-            
-            cv::rectangle(h_image, 
+
+            cv::rectangle(h_image,
             right_kp - cv::Point(5, 5),
             right_kp + cv::Point(5, 5),
             cv::Scalar(255, 0, 0));  // blue

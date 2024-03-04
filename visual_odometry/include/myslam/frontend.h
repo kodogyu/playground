@@ -3,6 +3,7 @@
 #define MYSLAM_FRONTEND_H
 
 #include <opencv2/features2d.hpp>
+#include <math.h>
 
 #include "myslam/common_include.h"
 #include "myslam/frame.h"
@@ -15,6 +16,25 @@ class Backend;
 class Viewer;
 
 enum class FrontendStatus { INITING, TRACKING_GOOD, TRACKING_BAD, LOST };
+
+struct SubpixelParams {
+    cv::Size window_size_ = cv::Size(10, 10);
+    cv::Size zero_zone_ = cv::Size(-1, -1);
+    cv::TermCriteria term_criteria_ = cv::TermCriteria(cv::TermCriteria::EPS + cv::TermCriteria::COUNT,
+                       10,
+                       0.01);
+};
+
+struct FeatureDetectorParams {
+    public:
+        int max_features_per_frame_ = 400;
+        int min_distance_btw_tracked_and_detected_features_ = 20;
+        int nr_horizontal_bins_ = 7;
+        int nr_vertical_bins_ = 5;
+        Eigen::MatrixXd binning_mask_;
+        bool enable_subpixel_corner_refinement_ = true;
+        SubpixelParams subpixel_corner_finder_params_;
+};
 
 /**
  * 前端
@@ -113,6 +133,29 @@ class Frontend {
      */
     void SetObservationsForKeyFrame();
 
+    // Kimera-VIO functions
+    std::vector<cv::KeyPoint> featureDetection(const Frame& cur_frame,
+                                              const int& need_n_corners);
+
+    std::vector<cv::KeyPoint> suppressNonMax(
+        const std::vector<cv::KeyPoint>& keyPoints,
+        const int& numRetPoints,
+        const float& tolerance,
+        const int& cols,
+        const int& rows,
+        const int& nr_horizontal_bins,
+        const int& nr_vertical_bins,
+        const Eigen::MatrixXd& binning_mask);
+
+    std::vector<cv::KeyPoint> binning(
+        const std::vector<cv::KeyPoint>& keyPoints,
+        const int& numKptsToRetain,
+        const int& imgCols,
+        const int& imgRows,
+        const int& nr_horizontal_bins,
+        const int& nr_vertical_bins,
+        const Eigen::MatrixXd& binning_mask);
+
     // data
     FrontendStatus status_ = FrontendStatus::INITING;
 
@@ -139,6 +182,9 @@ class Frontend {
 
     // utilities
     cv::Ptr<cv::GFTTDetector> gftt_;  // feature detector in opencv
+
+    // Kimera-VIO variables
+    FeatureDetectorParams feature_detector_params_;
 };
 
 }  // namespace myslam

@@ -14,20 +14,20 @@ class Logger {
     typedef std::shared_ptr<Logger> Ptr;
 
     Logger();
-    
+
     ~Logger();
 
     void logPose(const SE3 &pose);
 
     void logImage(const std::string filename, const cv::Mat image);
 
-    void logKpImages(const Frame::Ptr frame);
+    void logFeatureMatchImages(const Frame::Ptr frame);
 
   public:
     std::string log_path_;
 
     std::ofstream log_file_;
-};     
+};
 
 }  // namespace myslam
 
