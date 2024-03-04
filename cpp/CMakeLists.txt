@@ -56,6 +56,9 @@ target_link_libraries(gtsam_Pose2SLAMExample_graphviz gtsam)
 add_executable(gtsam_OdometryExample gtsam_OdometryExample.cpp)
 target_link_libraries(gtsam_OdometryExample gtsam)
 
+add_executable(gtsam_StereoVOExample gtsam_StereoVOExample.cpp)
+target_link_libraries(gtsam_StereoVOExample gtsam)
+
 # OpenCV files
 add_executable(opencv_cv_mat opencv_cv_mat.cpp)
 target_link_libraries(opencv_cv_mat ${OpenCV_LIBS})

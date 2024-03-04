@@ -22,6 +22,7 @@
  *  -moves forward 1 meter
  *  -takes stereo readings on three landmarks
  */
+#include <fstream>
 
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/geometry/Cal3_S2Stereo.h>
@@ -72,6 +73,12 @@ int main(int argc, char** argv) {
   Values result = optimizer.optimize();
 
   result.print("Final result:\n");
+
+
+  // save factor graph as graphviz dot file
+  // Render to PDF using "fdp StereoVOExample.dot -Tpdf > stereo_vo.pdf"
+  ofstream os("files/StereoVOExample.dot");
+  graph.saveGraph(os, result);
 
   return 0;
 }
