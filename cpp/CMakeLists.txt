@@ -85,3 +85,6 @@ target_link_libraries(sophus_basic Sophus::Sophus)
 # Applications
 add_executable(get_right_image get_right_image.cpp)
 target_link_libraries(get_right_image ${OpenCV_LIBS})
+
+add_executable(visual_odometry_example visual_odometry_example.cpp)
+target_link_libraries(visual_odometry_example ${OpenCV_LIBS})
