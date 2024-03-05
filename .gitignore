@@ -1,7 +1,17 @@
+# vscode
 .vscode/
+
+# cpp
 cpp/build/
+cpp/files/visual_odometry_example.csv
+
+# rosbags
 test_rosbags/
+
+# test library
 simple_lib/build
+
+# visual odometry
 visual_odometry/build/
 visual_odometry/lib/
 visual_odometry/output_logs/

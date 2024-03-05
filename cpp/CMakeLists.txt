@@ -1,6 +1,7 @@
 project(playground_cpp)
 
 cmake_minimum_required(VERSION 3.16)
+set(CMAKE_BUILD_TYPE Debug)
 
 ##=========================DEPENDENCIES=========================##
 find_package(Eigen3 REQUIRED)
@@ -8,6 +9,7 @@ find_package(GTSAM REQUIRED)
 find_package(OpenCV REQUIRED)   # -DOpenCV_DIR=/home/kodogyu/opencv/build
 find_package(Sophus REQUIRED)
 # find_package(cv_bridge REQUIRED)
+find_package(Pangolin 0.8 REQUIRED)
 
 message(STATUS "opencv version: ${OpenCV_VERSION}")
 
@@ -16,6 +18,7 @@ include_directories(
     ${GTSAM_INCLUDE_DIRS}
     ${OpenCV_INCLUDE_DIRS}
     # ${cv_bridge_INCLUDE_DIRS}
+    ${Pangolin_INCLUDE_DIRS}
 )
 
 ##=========================EXECUTABLES=========================##
@@ -82,9 +85,13 @@ target_link_libraries(opencv_cv_fileStorage ${OpenCV_LIBS})
 add_executable(sophus_basic sophus_basic.cpp)
 target_link_libraries(sophus_basic Sophus::Sophus)
 
+# Pangolin files
+add_executable(pangolin_HelloPangolin pangolin_HelloPangolin.cpp)
+target_link_libraries(pangolin_HelloPangolin pango_display pango_python)
+
 # Applications
 add_executable(get_right_image get_right_image.cpp)
 target_link_libraries(get_right_image ${OpenCV_LIBS})
 
 add_executable(visual_odometry_example visual_odometry_example.cpp)
-target_link_libraries(visual_odometry_example ${OpenCV_LIBS})
+target_link_libraries(visual_odometry_example ${OpenCV_LIBS} ${Pangolin_LIBRARIES} gtsam opengv)
