@@ -31,6 +31,7 @@ void stereoFrameDrawMatches(const cv::Mat &image_left,
                             cv::Mat &result_image,
                             int number_matches = -1);
 void writeVectors(const cv::Mat &rvec, const cv::Mat &tvec);
+void writeBestPose(const Eigen::Isometry3d &best_pose);
 void convertRt2Isometry(const cv::Mat &rvec, const cv::Mat &tvec, Eigen::Isometry3d &pose);
 void displayPoses(const Eigen::Isometry3d &pose, const std::vector<gtsam::Point3> &keypoints_3d);
 void displayPoses(const std::vector<Eigen::Isometry3d> &poses, const std::vector<gtsam::Point3> &keypoints_3d);
@@ -259,7 +260,7 @@ int main(int argc, char** argv) {
         versor[0] = keypoint.x / fx;
         versor[1] = keypoint.y / fx;
         versor[2] = 1;
-        bearing_vectors.push_back(versor);
+        bearing_vectors.push_back(versor.normalized());
         W_points.push_back(keypoints_3d[i]);
     }
 
@@ -305,6 +306,7 @@ int main(int argc, char** argv) {
     //** Visualize **//
     // write rotation, translation vector to .csv file
     writeVectors(rvec, tvec);
+    writeBestPose(best_pose_eigen);
 
     // visualize through pangolin
     std::vector<Eigen::Isometry3d> poses;
@@ -414,7 +416,23 @@ void writeVectors(const cv::Mat &rvec, const cv::Mat &tvec) {
         << "tvec[0]" << ", " << "tvec[1]" << ", " << "tvec[2]" << std::endl;
     // write vectors
     file << rvec.at<double>(0, 0) << ", " << rvec.at<double>(0, 1) << ", " << rvec.at<double>(0, 2) << ", "
-        << tvec.at<double>(0, 0) << ", " << tvec.at<double>(0, 1) << ", " << tvec.at<double>(0, 2);
+        << tvec.at<double>(0, 0) << ", " << tvec.at<double>(0, 1) << ", " << tvec.at<double>(0, 2) << std::endl;
+    // close file
+    file.close();
+}
+
+void writeBestPose(const Eigen::Isometry3d &best_pose) {
+    // open file
+    std::ofstream file("files/visual_odometry_example.csv", std::ios::app);
+    // write header
+    file << "qx" << ", " << "qy" << ", " << "qz" << ", " << "qw" << ", "
+        << "tx" << ", " << "ty" << ", " << "tz" << std::endl;
+    gtsam::Rot3 rotationMatrix(best_pose.rotation());
+    gtsam::Vector q = rotationMatrix.quaternion();
+    gtsam::Vector t = best_pose.translation();
+    // write vectors
+    file << q.x() << ", " << q.y() << ", " << q.z() << ", " << q.w() << ", "
+        << t.x() << ", " << t.y() << ", " << t.z() << std::endl;
     // close file
     file.close();
 }
