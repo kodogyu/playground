@@ -18,5 +18,11 @@ int main() {
 
     std::cout << "OpenCV Matrix:\n" << cvMatrix << std::endl;
 
+    // OpenCV 행렬을 Eigen 행렬로 변환
+    Eigen::Matrix3d eigenMatrix2;
+    cv::cv2eigen(cvMatrix, eigenMatrix2);
+
+    std::cout << "Eigen Matrix2:\n" << eigenMatrix2 << std::endl;
+
     return 0;
 }
