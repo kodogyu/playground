@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <thread>
+#include <chrono>
 
 #include <Eigen/Dense>
 
@@ -14,7 +15,12 @@
 #include <opengv/sac_problems/absolute_pose/AbsolutePoseSacProblem.hpp>
 
 #include <gtsam/geometry/Pose3.h>
+#include <gtsam/slam/PriorFactor.h>
+#include <gtsam/slam/StereoFactor.h>
+#include <gtsam/inference/Symbol.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
+#include <gtsam/nonlinear/NonlinearEquality.h>
+#include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>
 
 #include <pangolin/pangolin.h>
 
@@ -123,7 +129,7 @@ int main(int argc, char** argv) {
     double baseline = 0.008;  // baseline = 0.008m (=8mm)
 
     // get 3D keypoints
-    std::vector<gtsam::Point3> keypoints_3d;
+    std::vector<gtsam::Point3> keypoints_3d;  // image1의 keypoint 중 3D 좌표가 계산된 keypoint 좌표
     std::vector<cv::Point2f> img2_left_kp_pts;
     std::vector<int> img2_1_kp_map;
     std::vector<int> img2_1_kp_vec;  // image1과 대응되는 image2의 keypoint 중 3D 좌표가 계산된 keypoint의 index
@@ -238,10 +244,16 @@ int main(int argc, char** argv) {
 
     std::vector<cv::Point3f> object_points(keypoints_3d_cv.begin(), keypoints_3d_cv.begin() + 4);
     std::vector<cv::Point2f> image_points(img2_left_kp_pts.begin(), img2_left_kp_pts.begin() + 4);
+    // start time of solvePnP()
+    const std::chrono::time_point<std::chrono::steady_clock> start_pnp = std::chrono::steady_clock::now();
     cv::solvePnP(object_points,
                 image_points,
                 cameraMatrix, distCoeffs,
                 rvec, tvec);
+    // end time of solvePnP()
+    const std::chrono::time_point<std::chrono::steady_clock> end_pnp = std::chrono::steady_clock::now();
+    const std::chrono::duration<double> sec_pnp = end_pnp - start_pnp;
+    std::cout << "solvePnP elapsed time: " << sec_pnp.count() << std::endl;  // 0.00058992
 
     cv::Mat rotationMatrix;
     cv::Rodrigues(rvec, rotationMatrix);
@@ -282,8 +294,14 @@ int main(int argc, char** argv) {
     // run ransac
     ransac.sac_model_ = absposeproblem_ptr;
     ransac.threshold_ = threshold;
-    ransac.max_iterations_ = 900;
+    ransac.max_iterations_ = 300;
+    // start time of OpenGV RANSAC
+    const std::chrono::time_point<std::chrono::steady_clock> start_opengv_ransac = std::chrono::steady_clock::now();
     ransac.computeModel();
+    // end time of OpenGV RANSAC
+    const std::chrono::time_point<std::chrono::steady_clock> end_opengv_ransac = std::chrono::steady_clock::now();
+    const std::chrono::duration<double> sec_opengv_ransac = end_opengv_ransac - start_opengv_ransac;
+    std::cout << "OpenGV RANSAC elapsed time: " << sec_opengv_ransac.count() << std::endl;  // 0.0271196
 
     // get the best pose
     opengv::transformation_t best_pose = ransac.model_coefficients_;
@@ -292,16 +310,70 @@ int main(int argc, char** argv) {
     //** GTSAM optimize **//
     // create a graph
     gtsam::NonlinearFactorGraph graph;
+    // stereo camera calibration object
+    gtsam::Cal3_S2Stereo::shared_ptr K(
+        new gtsam::Cal3_S2Stereo(fx, fy, 0, cx, cy, baseline));
+
+    // create initial values
+    gtsam::Values initial_estimates;
 
     // add factors
+    // prior factor
+    const auto priorNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1);
+    gtsam::Pose3 first_pose;
+    // graph.push_back(gtsam::PriorFactor<gtsam::Pose3>(gtsam::Symbol('x', 0), first_pose, priorNoise));
+    // stereo factors
+    const auto noiseModel = gtsam::noiseModel::Isotropic::Sigma(3, 1);
+    // pose1
     for (int i = 0; i < keypoints_3d.size(); i++) {
-
+    // for (int i = 0; i < 10; i++) {  // 10 points
+        cv::Point left_kp_pt = img1_left_kps[img1_kp_map[i]].pt;
+        cv::Point right_kp_pt = img1_right_kps_pts[i];
+        graph.emplace_shared<gtsam::GenericStereoFactor<gtsam::Pose3, gtsam::Point3>>(
+            gtsam::StereoPoint2(left_kp_pt.x, right_kp_pt.x, left_kp_pt.y),
+            noiseModel,
+            gtsam::Symbol('x', 0),
+            gtsam::Symbol('l', i),
+            K);
+        // initial value of the landmark
+        initial_estimates.insert(gtsam::Symbol('l', i), keypoints_3d[i]);
+    }
+    // pose2
+    // TODO landmark 대응관계 정리하기
+    for (int j = 0; j < img2_keypoints_3d.size(); j++) {
+    // for (int j = 0; j < 10; j++) { // 10 points
+        cv::Point left_kp_pt = img2_left_kps[img2_kp_map[j]].pt;
+        cv::Point right_kp_pt = img2_right_kps_pts[j];
+        graph.emplace_shared<gtsam::GenericStereoFactor<gtsam::Pose3, gtsam::Point3>>(
+            gtsam::StereoPoint2(left_kp_pt.x, right_kp_pt.x, left_kp_pt.y),
+            noiseModel,
+            gtsam::Symbol('x', 1),
+            gtsam::Symbol('l', j),
+            K);
     }
 
-    // add initial values
+    // add initial pose estimates
+    initial_estimates.insert(gtsam::Symbol('x', 0), first_pose);
+    initial_estimates.insert(gtsam::Symbol('x', 1), gtsam::Pose3(gtsam::Rot3(best_pose_eigen.rotation()), gtsam::Point3(best_pose_eigen.translation())));
+    // constrain the first pose
+    graph.emplace_shared<gtsam::NonlinearEquality<gtsam::Pose3> >(gtsam::Symbol('x', 0), first_pose);
 
     // optimize
+    gtsam::LevenbergMarquardtOptimizer optimizer(graph, initial_estimates);
+    // start time of GTSAM LM optimization
+    const std::chrono::time_point<std::chrono::steady_clock> start_gtsam_opt = std::chrono::steady_clock::now();
+    gtsam::Values result = optimizer.optimize();
+    // end time of GTSAM LM optimization
+    const std::chrono::time_point<std::chrono::steady_clock> end_gtsam_opt = std::chrono::steady_clock::now();
+    const std::chrono::duration<double> sec_gtsam_opt = end_gtsam_opt - start_gtsam_opt;
+    std::cout << "GTSAM Optimization elapsed time: " << sec_gtsam_opt.count() << std::endl;  // 0.251295
 
+    result.print("optimization result:\n");
+
+    gtsam::Pose3 gtsam_pose = result.at<gtsam::Pose3>(gtsam::Symbol('x', 1));
+    Eigen::Isometry3d gtsam_pose_eigen;
+    gtsam_pose_eigen.matrix().block<3, 3>(0, 0) = gtsam_pose.rotation().matrix();
+    gtsam_pose_eigen.matrix().block<3, 1>(0, 3) = gtsam_pose.translation().matrix();
 
     //** Visualize **//
     // write rotation, translation vector to .csv file
@@ -317,6 +389,7 @@ int main(int argc, char** argv) {
     convertRt2Isometry(rvec, tvec, pnp_pose);
     poses.push_back(pnp_pose);
     poses.push_back(best_pose_eigen);
+    poses.push_back(gtsam_pose_eigen);
 
     // make keypoints vector with image1 and image2 3D keypoints
     keypoints_3d_vec.push_back(keypoints_3d);
@@ -578,7 +651,7 @@ void displayPosesWithKeyPoints(const std::vector<Eigen::Isometry3d> &poses, cons
         glVertex3f(0, 0, 1);
         glEnd();
 
-        // draw image1 map points
+        // draw poses[0] map points
         glPointSize(5.0f);
         glBegin(GL_POINTS);
         for (int i = 0; i < keypoints_3d_vec[0].size(); i++) {
@@ -589,13 +662,24 @@ void displayPosesWithKeyPoints(const std::vector<Eigen::Isometry3d> &poses, cons
         }
         glEnd();
 
-        // draw image2 map points
+        // draw poses[1] map points
         glPointSize(5.0f);
         glBegin(GL_POINTS);
         for (int i = 0; i < keypoints_3d_vec[1].size(); i++) {
             gtsam::Point3 point = poses[1] * keypoints_3d_vec[1][i];
 
             glColor3f(0.0, 0.0, 1.0);  // blue
+            glVertex3d(point[0], point[1], point[2]);
+        }
+        glEnd();
+
+        // draw poses[2] map points
+        glPointSize(5.0f);
+        glBegin(GL_POINTS);
+        for (int i = 0; i < keypoints_3d_vec[1].size(); i++) {
+            gtsam::Point3 point = poses[2] * keypoints_3d_vec[1][i];
+
+            glColor3f(0.0, 1.0, 0.0);  // green
             glVertex3d(point[0], point[1], point[2]);
         }
         glEnd();
