@@ -24,11 +24,40 @@
 
 #include <pangolin/pangolin.h>
 
+struct Landmark {
+    int id;
+    std::vector<int> observations;  // keypoint index vector
+    std::vector<gtsam::Point3> measurements;  // 3D coordinate at corresponding pose
+};
+struct Frame{
+    cv::Mat image;
+    std::vector<cv::KeyPoint> keypoints;
+    std::vector<cv::Point2f> keypoints_pts;
+};
+struct StereoFrame {
+    int id;
+    Frame left_frame;
+    Frame right_frame;
+    std::vector<int> keypoint_matches_R_L;  // R_L[right_idx] -> left_idx
+    std::vector<int> keypoint_matches_L_R;  // L_R[left_idx] -> right_idx
+    std::vector<std::shared_ptr<Landmark>> landmarks;
+    std::vector<std::shared_ptr<Landmark>> matching_landmarks_with_last_frame;
+
+    gtsam::Pose3 pose;
+
+    double fx = 620.070096090849;
+    double fy = 618.2102185572654;
+    double cx = 325.29844703787114;
+    double cy = 258.48711395621467;
+    double baseline = 0.008;  // baseline = 0.008m (=8mm)
+};
+
 void stereoFrameMatchTemplate(const cv::Mat &image_left,
                             const cv::Mat &image_right,
                             const std::vector<cv::KeyPoint> &img_left_kps,
                             std::vector<int> &img_RL_kp_map,
                             std::vector<cv::Point2f> &img_right_kps_pts);
+
 void stereoFrameDrawMatches(const cv::Mat &image_left,
                             const cv::Mat &image_right,
                             const std::vector<int> &img_kp_map,
@@ -36,11 +65,27 @@ void stereoFrameDrawMatches(const cv::Mat &image_left,
                             const std::vector<cv::Point2f> &img_right_kps_pts,
                             cv::Mat &result_image,
                             int number_matches = -1);
+
+void stereoFrameDrawMatches(const cv::Mat &image_left,
+                            const cv::Mat &image_right,
+                            const std::vector<int> &img_kp_map,
+                            const std::vector<cv::KeyPoint> &img_left_kps,
+                            const std::vector<cv::KeyPoint> &img_right_kps,
+                            cv::Mat &result_image,
+                            int number_matches = -1);
+
+void stereoFrameTriangulate(StereoFrame &stereo_image, const std::vector<int> &landmark_mask);
+
 void writeVectors(const cv::Mat &rvec, const cv::Mat &tvec);
+
 void writeBestPose(const Eigen::Isometry3d &best_pose);
+
 void convertRt2Isometry(const cv::Mat &rvec, const cv::Mat &tvec, Eigen::Isometry3d &pose);
+
 void displayPoses(const Eigen::Isometry3d &pose, const std::vector<gtsam::Point3> &keypoints_3d);
+
 void displayPoses(const std::vector<Eigen::Isometry3d> &poses, const std::vector<gtsam::Point3> &keypoints_3d);
+
 void displayPosesWithKeyPoints(const std::vector<Eigen::Isometry3d> &poses, const std::vector<std::vector<gtsam::Point3>> &keypoints_3d_vec);
 
 int main(int argc, char** argv) {
@@ -58,6 +103,14 @@ int main(int argc, char** argv) {
     image2_left = cv::imread(config_file["image2_left"], cv::IMREAD_GRAYSCALE);
     image2_right = cv::imread(config_file["image2_right"], cv::IMREAD_GRAYSCALE);
 
+    StereoFrame stereo_image1, stereo_image2;
+    stereo_image1.id = 0;
+    stereo_image1.left_frame.image = image1_left;
+    stereo_image1.right_frame.image = image1_right;
+    stereo_image2.id = 1;
+    stereo_image2.left_frame.image = image2_left;
+    stereo_image2.right_frame.image = image2_right;
+
     std::cout << "image1_left location: " << std::string(config_file["image1_left"]) << std::endl;
 
     //** Feature extraction **//
@@ -70,6 +123,14 @@ int main(int argc, char** argv) {
 
     orb->detectAndCompute(image1_left, cv::Mat(), img1_left_kps, img1_left_descriptors);
     orb->detectAndCompute(image2_left, cv::Mat(), img2_left_kps, img2_left_descriptors);
+    stereo_image1.left_frame.keypoints = img1_left_kps;
+    stereo_image2.left_frame.keypoints = img2_left_kps;
+    for (const auto kp: img1_left_kps) {
+        stereo_image1.left_frame.keypoints_pts.push_back(kp.pt);
+    }
+    for (const auto kp: img2_left_kps) {
+        stereo_image2.left_frame.keypoints_pts.push_back(kp.pt);
+    }
 
     //** Feature matching **//
     // create a matcher
@@ -80,6 +141,13 @@ int main(int argc, char** argv) {
     std::vector<cv::Point2f> img1_right_kps_pts;
     stereoFrameMatchTemplate(image1_left, image1_right,
                             img1_left_kps, img1_kp_map, img1_right_kps_pts);
+    stereo_image1.keypoint_matches_R_L = img1_kp_map;
+    std::vector<int> img1_kp_map_L_R(stereo_image1.left_frame.keypoints.size(), -1);
+    for (int i = 0; i < img1_kp_map.size(); i++) {
+        img1_kp_map[img1_kp_map[i]] = i;
+    }
+    stereo_image1.keypoint_matches_L_R = img1_kp_map_L_R;
+    stereo_image1.right_frame.keypoints_pts = img1_right_kps_pts;
 
     // image1 left & image2 left (matcher matching)
     std::vector<std::vector<cv::DMatch>> matches_img1_2_vec;
@@ -100,6 +168,13 @@ int main(int argc, char** argv) {
     std::vector<cv::Point2f> img2_right_kps_pts;
     stereoFrameMatchTemplate(image2_left, image2_right,
                             img2_left_kps, img2_kp_map, img2_right_kps_pts);
+    stereo_image2.keypoint_matches_R_L = img2_kp_map;
+    std::vector<int> img2_kp_map_L_R(stereo_image2.left_frame.keypoints.size(), -1);
+    for (int i = 0; i < img2_kp_map.size(); i++) {
+        img2_kp_map[img2_kp_map[i]] = i;
+    }
+    stereo_image2.keypoint_matches_L_R = img2_kp_map_L_R;
+    stereo_image2.right_frame.keypoints_pts = img2_right_kps_pts;
 
     // draw matches
     cv::Mat img1_matches, img2_matches;
@@ -114,11 +189,6 @@ int main(int argc, char** argv) {
                         img2_left_kps, img2_right_kps_pts,
                         img2_matches);
 
-    // cv::imshow("image1 left & right matches: " + std::to_string(img1_right_kps_pts.size()), img1_matches);
-    // cv::imshow("image1&2 matches", img1_2_matches);
-    // cv::imshow("image2 left & right matches: " + std::to_string(img2_right_kps_pts.size()), img2_matches);
-    // cv::waitKey(0);
-    // cv::destroyAllWindows();
 
     //** Triangulation **//
     // camera intrinsic parameters
@@ -128,83 +198,59 @@ int main(int argc, char** argv) {
     double cy = 258.48711395621467;
     double baseline = 0.008;  // baseline = 0.008m (=8mm)
 
-    // get 3D keypoints
-    std::vector<gtsam::Point3> keypoints_3d;  // image1의 keypoint 중 3D 좌표가 계산된 keypoint 좌표
-    std::vector<cv::Point2f> img2_left_kp_pts;
-    std::vector<int> img2_1_kp_map;
-    std::vector<int> img2_1_kp_vec;  // image1과 대응되는 image2의 keypoint 중 3D 좌표가 계산된 keypoint의 index
-    cv::Mat spare_img1;
-    cv::cvtColor(image1_left, spare_img1, cv::COLOR_GRAY2BGR);
+    // stereo image1에서 모든 keypoint의 3D 좌표 계산
+    std::vector<int> img1_landmark_mask(stereo_image1.left_frame.keypoints.size(), 0);
+    stereoFrameTriangulate(stereo_image1, img1_landmark_mask);
+    std::cout << "landmarks in image1: " << stereo_image1.landmarks.size() << std::endl;
 
+    // image2에서 image1과 중복되는 landmark 검출
+    std::vector<int> img2_landmark_mask(stereo_image2.left_frame.keypoints.size(), 0);
+    for (auto plandmark: stereo_image1.landmarks) {
+        for (int j = 0; j < matches_img1_2.size(); j++) {
+            // landmark match found between stereo image1 (observations[0]) and stereo image2 (observations[1])
+            if (plandmark->observations[0] == matches_img1_2[j].queryIdx) {
+                plandmark->observations.push_back(matches_img1_2[j].trainIdx);
+                stereo_image2.landmarks.push_back(plandmark);
+                img2_landmark_mask[matches_img1_2[j].trainIdx] = 1;
+
+                stereo_image2.matching_landmarks_with_last_frame.push_back(plandmark);
+                break;
+            }
+        }
+    }
+    // image2에서 image1과 중복되지 않는 landmark 계산
+    stereoFrameTriangulate(stereo_image2, img2_landmark_mask);
+    std::cout << "landmarks in image2: " << stereo_image2.landmarks.size() << std::endl;
+
+    // calculate img2_1_kp_map
+    std::vector<int> img2_1_kp_map;
+    for (const auto plandmark: stereo_image2.matching_landmarks_with_last_frame) {
+        img2_1_kp_map.push_back(plandmark->observations[0]);
+    }
+    std::cout << "object points: " << img2_1_kp_map.size() << std::endl;
+
+    // calculate img2_1_kp_map0 (old version)
+    std::vector<int> img2_1_kp_map0;
     for (int i = 0; i < matches_img1_2.size(); i++) {
         for (int j = 0; j < img1_kp_map.size(); j++) {
             if (matches_img1_2[i].queryIdx == img1_kp_map[j]) {
                 // keypoint in camera coordinate (normalized image plane)
-                gtsam::Vector3 versor;
                 cv::KeyPoint keypoint = img1_left_kps[matches_img1_2[i].queryIdx];  // image1 keypoint
-                versor[0] = (keypoint.pt.x - cx) / fx;
-                versor[1] = (keypoint.pt.y - cy) / fx;
-                versor[2] = 1;
-
                 // disparity to depth
                 cv::Point img1_left_kp_pt = keypoint.pt;
                 cv::Point img1_right_kp_pt = img1_right_kps_pts[j];
                 float disparity = img1_left_kp_pt.x - img1_right_kp_pt.x;
                 if (disparity > 0) {
-                    float depth = fx * baseline / disparity;
-                    // std::cout << "depth: " << depth << std::endl;
-                    // std::cout << "point: " << img1_left_kp_pt << std::endl;
-                    cv::circle(spare_img1, img1_left_kp_pt, 3, cv::Scalar(0, 0, 5 * i), -1);  // mark keypoints
-
-                    // 3D keypoint in camera coordinate
-                    gtsam::Point3 keypoint_3d;
-                    keypoint_3d = versor * depth;
-                    keypoints_3d.push_back(keypoint_3d);
-
                     // corresponding image2 keypoint
-                    cv::KeyPoint img2_keypoint = img2_left_kps[matches_img1_2[i].trainIdx];
-                    img2_left_kp_pts.push_back(img2_keypoint.pt);
-                    img2_1_kp_map.push_back(matches_img1_2[i].queryIdx);
-                    img2_1_kp_vec.push_back(matches_img1_2[i].trainIdx);
+                    img2_1_kp_map0.push_back(matches_img1_2[i].queryIdx);
                 }
             }
         }
     }
-    std::cout << "3D keypoint object points: " << keypoints_3d.size() << std::endl;
-    cv::imshow("3D keypoints in image 1", spare_img1);
-
-    // get 3d key points from image2
-    std::vector<gtsam::Point3> img2_keypoints_3d;
-    cv::Mat spare_img2;
-    cv::cvtColor(image2_left, spare_img2, cv::COLOR_GRAY2BGR);
-
-    for (int i = 0; i < img2_1_kp_vec.size(); i++) {
-        gtsam::Vector3 versor;
-        cv::KeyPoint keypoint = img2_left_kps[img2_1_kp_vec[i]];  // image2 keypoint
-        versor[0] = (keypoint.pt.x - cx) / fx;
-        versor[1] = (keypoint.pt.y - cy) / fx;
-        versor[2] = 1;
-
-        // disparity to depth
-        cv::Point img2_left_kp_pt = keypoint.pt;
-        cv::Point img2_right_kp_pt = img2_right_kps_pts[img2_1_kp_vec[i]];
-        float disparity = img2_left_kp_pt.x - img2_right_kp_pt.x;
-        if (disparity > 0) {
-            float depth = fx * baseline / disparity;
-            cv::circle(spare_img2, img2_left_kp_pt, 3, cv::Scalar(5 * i, 0, 0), -1);  // mark keypoints
-
-            // 3D keypoint in camera coordinate
-            gtsam::Point3 keypoint_3d;
-            keypoint_3d = versor * depth;
-            img2_keypoints_3d.push_back(keypoint_3d);
-        }
-    }
-    std::cout << "3D keypoint object points in image2: " << img2_keypoints_3d.size() << std::endl;
-    cv::imshow("3D keypoints in image 2", spare_img2);
 
     // draw matches between image1 left & image2 left
     cv::Mat img1_2_matches_temp;
-    stereoFrameDrawMatches(image1_left, image2_left, img2_1_kp_map, img1_left_kps, img2_left_kp_pts, img1_2_matches_temp, 10);
+    stereoFrameDrawMatches(image1_left, image2_left, img2_1_kp_map, stereo_image1.left_frame.keypoints, stereo_image2.left_frame.keypoints, img1_2_matches_temp, 10);
     cv::imshow("image 1 & 2 matches", img1_2_matches_temp);
 
 
@@ -232,15 +278,24 @@ int main(int argc, char** argv) {
     distCoeffs.at<float>(2,0) = 0.007300675413449662;
     distCoeffs.at<float>(3,0) = -0.003734002028256388;
 
+    // make object point vector
+    std::vector<gtsam::Point3> keypoints_3d;
+    for (const auto plandmark: stereo_image2.matching_landmarks_with_last_frame) {
+        // landmark coordinate in first pose
+        keypoints_3d.push_back(plandmark->measurements[0]);
+    }
+    // make vector of OpenCV format
     std::vector<cv::Point3f> keypoints_3d_cv;
-    for (int i = 0 ; i < keypoints_3d.size(); i++) {
+    for (const auto plandmark: stereo_image2.matching_landmarks_with_last_frame) {
         cv::Point3f point;
-        point.x = keypoints_3d[i].x();
-        point.y = keypoints_3d[i].y();
-        point.z = keypoints_3d[i].z();
+        // landmark coordinate in first pose
+        point.x = plandmark->measurements[0].x();
+        point.y = plandmark->measurements[0].y();
+        point.z = plandmark->measurements[0].z();
 
         keypoints_3d_cv.push_back(point);
     }
+    std::vector<cv::Point2f> img2_left_kp_pts = stereo_image2.left_frame.keypoints_pts;
 
     std::vector<cv::Point3f> object_points(keypoints_3d_cv.begin(), keypoints_3d_cv.begin() + 4);
     std::vector<cv::Point2f> image_points(img2_left_kp_pts.begin(), img2_left_kp_pts.begin() + 4);
@@ -266,14 +321,15 @@ int main(int argc, char** argv) {
     opengv::bearingVectors_t bearing_vectors;
     opengv::points_t W_points;
 
-    for (int i = 0; i < img2_1_kp_map.size(); i++) {
-        cv::Point keypoint = img2_left_kp_pts[i];
+    for (int i = 0; i < stereo_image2.matching_landmarks_with_last_frame.size(); i++) {
+        const auto plandmark = stereo_image2.matching_landmarks_with_last_frame[i];
+        cv::Point2f keypoint = img2_left_kp_pts[plandmark->observations[1]];
         gtsam::Point3 versor;
         versor[0] = keypoint.x / fx;
         versor[1] = keypoint.y / fx;
         versor[2] = 1;
         bearing_vectors.push_back(versor.normalized());
-        W_points.push_back(keypoints_3d[i]);
+        W_points.push_back(plandmark->measurements[0]);
     }
 
     // create the central adapter
@@ -325,38 +381,42 @@ int main(int argc, char** argv) {
     // stereo factors
     const auto noiseModel = gtsam::noiseModel::Isotropic::Sigma(3, 1);
     // pose1
-    for (int i = 0; i < keypoints_3d.size(); i++) {
-    // for (int i = 0; i < 10; i++) {  // 10 points
-        cv::Point left_kp_pt = img1_left_kps[img1_kp_map[i]].pt;
-        cv::Point right_kp_pt = img1_right_kps_pts[i];
+    for (int i = 0; i < stereo_image1.landmarks.size(); i++) {
+        const auto plandmark = stereo_image1.landmarks[i];
+        cv::Point left_kp_pt = stereo_image1.left_frame.keypoints_pts[plandmark->observations[0]];
+        cv::Point right_kp_pt = stereo_image1.right_frame.keypoints_pts[i];
         graph.emplace_shared<gtsam::GenericStereoFactor<gtsam::Pose3, gtsam::Point3>>(
             gtsam::StereoPoint2(left_kp_pt.x, right_kp_pt.x, left_kp_pt.y),
             noiseModel,
-            gtsam::Symbol('x', 0),
-            gtsam::Symbol('l', i),
+            gtsam::Symbol('x', stereo_image1.id),
+            gtsam::Symbol('l', plandmark->id),
             K);
         // initial value of the landmark
-        initial_estimates.insert(gtsam::Symbol('l', i), keypoints_3d[i]);
+        initial_estimates.insert(gtsam::Symbol('l', plandmark->id), plandmark->measurements[0]);
     }
     // pose2
     // TODO landmark 대응관계 정리하기
-    for (int j = 0; j < img2_keypoints_3d.size(); j++) {
-    // for (int j = 0; j < 10; j++) { // 10 points
-        cv::Point left_kp_pt = img2_left_kps[img2_kp_map[j]].pt;
-        cv::Point right_kp_pt = img2_right_kps_pts[j];
+    for (int j = 0; j < stereo_image2.landmarks.size(); j++) {
+        const auto plandmark = stereo_image2.landmarks[j];
+        cv::Point left_kp_pt = stereo_image2.left_frame.keypoints_pts[plandmark->observations[1]];
+        cv::Point right_kp_pt = stereo_image2.right_frame.keypoints_pts[j];
         graph.emplace_shared<gtsam::GenericStereoFactor<gtsam::Pose3, gtsam::Point3>>(
             gtsam::StereoPoint2(left_kp_pt.x, right_kp_pt.x, left_kp_pt.y),
             noiseModel,
-            gtsam::Symbol('x', 1),
-            gtsam::Symbol('l', j),
+            gtsam::Symbol('x', stereo_image2.id),
+            gtsam::Symbol('l', plandmark->id),
             K);
+        // initial value of the landmark
+        if (!initial_estimates.exists(gtsam::Symbol('l', plandmark->id))) {
+            initial_estimates.insert(gtsam::Symbol('l', plandmark->id), plandmark->measurements[1]);
+        }
     }
 
     // add initial pose estimates
-    initial_estimates.insert(gtsam::Symbol('x', 0), first_pose);
-    initial_estimates.insert(gtsam::Symbol('x', 1), gtsam::Pose3(gtsam::Rot3(best_pose_eigen.rotation()), gtsam::Point3(best_pose_eigen.translation())));
+    initial_estimates.insert(gtsam::Symbol('x', stereo_image1.id), first_pose);
+    initial_estimates.insert(gtsam::Symbol('x', stereo_image2.id), gtsam::Pose3(gtsam::Rot3(best_pose_eigen.rotation()), gtsam::Point3(best_pose_eigen.translation())));
     // constrain the first pose
-    graph.emplace_shared<gtsam::NonlinearEquality<gtsam::Pose3> >(gtsam::Symbol('x', 0), first_pose);
+    graph.emplace_shared<gtsam::NonlinearEquality<gtsam::Pose3> >(gtsam::Symbol('x', stereo_image1.id), first_pose);
 
     // optimize
     gtsam::LevenbergMarquardtOptimizer optimizer(graph, initial_estimates);
@@ -368,9 +428,11 @@ int main(int argc, char** argv) {
     const std::chrono::duration<double> sec_gtsam_opt = end_gtsam_opt - start_gtsam_opt;
     std::cout << "GTSAM Optimization elapsed time: " << sec_gtsam_opt.count() << std::endl;  // 0.251295
 
+    stereo_image1.pose = result.at<gtsam::Pose3>(gtsam::Symbol('x', stereo_image1.id));
+    stereo_image2.pose = result.at<gtsam::Pose3>(gtsam::Symbol('x', stereo_image2.id));
     result.print("optimization result:\n");
 
-    gtsam::Pose3 gtsam_pose = result.at<gtsam::Pose3>(gtsam::Symbol('x', 1));
+    gtsam::Pose3 gtsam_pose = result.at<gtsam::Pose3>(gtsam::Symbol('x', stereo_image2.id));
     Eigen::Isometry3d gtsam_pose_eigen;
     gtsam_pose_eigen.matrix().block<3, 3>(0, 0) = gtsam_pose.rotation().matrix();
     gtsam_pose_eigen.matrix().block<3, 1>(0, 3) = gtsam_pose.translation().matrix();
@@ -393,6 +455,10 @@ int main(int argc, char** argv) {
 
     // make keypoints vector with image1 and image2 3D keypoints
     keypoints_3d_vec.push_back(keypoints_3d);
+    std::vector<gtsam::Point3> img2_keypoints_3d;
+    for (const auto plandmark: stereo_image2.landmarks) {
+        img2_keypoints_3d.push_back(plandmark->measurements[1]);
+    }
     keypoints_3d_vec.push_back(img2_keypoints_3d);
 
     // display
@@ -479,6 +545,60 @@ void stereoFrameDrawMatches(const cv::Mat &image_left,
             cv::Scalar(0, 255, 0));  // green
         cv::line(result_image, left_kp_pt, right_kp_pt, cv::Scalar(0, 255, 0));
     }
+}
+
+void stereoFrameDrawMatches(const cv::Mat &image_left,
+                            const cv::Mat &image_right,
+                            const std::vector<int> &img_kp_map,
+                            const std::vector<cv::KeyPoint> &img_left_kps,
+                            const std::vector<cv::KeyPoint> &img_right_kps,
+                            cv::Mat &result_image,
+                            int number_matches) {
+    std::vector<cv::Point2f> img_right_kps_pts;
+    for (const auto kp: img_right_kps) {
+        img_right_kps_pts.push_back(kp.pt);
+    }
+
+    stereoFrameDrawMatches(image_left,
+                        image_right,
+                        img_kp_map,
+                        img_left_kps,
+                        img_right_kps_pts,
+                        result_image,
+                        number_matches);
+}
+
+void stereoFrameTriangulate(StereoFrame &stereo_image, const std::vector<int> &landmark_mask) {
+    // stereo image에서 모든 keypoint의 3D 좌표 계산
+    static int landmark_id = 0;
+    for (int i = 0; i < stereo_image.left_frame.keypoints.size(); i++) {
+        // if masked, skip calculating the corresponding landmark
+        if (landmark_mask[i]) {
+            continue;
+        }
+        cv::Point2f left_kp_pt = stereo_image.left_frame.keypoints[i].pt;
+        cv::Point2f right_kp_pt = stereo_image.right_frame.keypoints_pts[stereo_image.keypoint_matches_L_R[i]];  //! this could lead out of index
+
+        gtsam::Point3 versor;
+        versor[0] = left_kp_pt.x / stereo_image.fx;
+        versor[1] = left_kp_pt.y / stereo_image.fx;
+        versor[2] = 1;
+
+        double disparity = left_kp_pt.x - right_kp_pt.x;
+        if (disparity > 0) {
+            double depth = stereo_image.fx * stereo_image.baseline / disparity;
+
+            // 3D keypoint is a landmark
+            std::shared_ptr<Landmark> plandmark = std::make_shared<Landmark>();
+            plandmark->id = landmark_id;
+            plandmark->observations.push_back(stereo_image.keypoint_matches_R_L[i]);
+            plandmark->measurements.push_back(depth * versor);
+
+            stereo_image.landmarks.push_back(plandmark);
+            landmark_id++;
+        }
+    }
+
 }
 
 void writeVectors(const cv::Mat &rvec, const cv::Mat &tvec) {
@@ -685,8 +805,10 @@ void displayPosesWithKeyPoints(const std::vector<Eigen::Isometry3d> &poses, cons
         glEnd();
 
         // draw transformed axis
+        std::vector<std::vector<float>> colors {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}};
         Eigen::Vector3d last_center(0.0, 0.0, 0.0);
 
+        int color_idx = 0;
         for (auto cam_pose : poses) {
             Eigen::Vector3d Ow = cam_pose.translation();
             Eigen::Vector3d Xw = cam_pose * (0.1 * Eigen::Vector3d(1.0, 0.0, 0.0));
@@ -705,12 +827,14 @@ void displayPosesWithKeyPoints(const std::vector<Eigen::Isometry3d> &poses, cons
             glEnd();
             // draw odometry line
             glBegin(GL_LINES);
-            glColor3f(0.0, 0.0, 0.0);
+            glColor3f(colors[color_idx][0], colors[color_idx][1], colors[color_idx][2]);
+            // glColor3f(0.0, 0.0, 0.0);
             glVertex3d(last_center[0], last_center[1], last_center[2]);
             glVertex3d(Ow[0], Ow[1], Ow[2]);
             glEnd();
 
             last_center = Ow;
+            color_idx++;
         }
 
         pangolin::FinishFrame();
