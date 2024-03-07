@@ -74,6 +74,8 @@ void stereoFrameDrawMatches(const cv::Mat &image_left,
                             cv::Mat &result_image,
                             int number_matches = -1);
 
+void keyPointTriangulate(const StereoFrame &stereo_image, const int &left_kp_idx, gtsam::Point3 &measurement);
+
 void stereoFrameTriangulate(StereoFrame &stereo_image, const std::vector<int> &landmark_mask);
 
 void writeVectors(const cv::Mat &rvec, const cv::Mat &tvec);
@@ -82,7 +84,7 @@ void writeBestPose(const Eigen::Isometry3d &best_pose);
 
 void convertRt2Isometry(const cv::Mat &rvec, const cv::Mat &tvec, Eigen::Isometry3d &pose);
 
-void displayPoses(const Eigen::Isometry3d &pose, const std::vector<gtsam::Point3> &keypoints_3d);
+void displayPose(const Eigen::Isometry3d &pose, const std::vector<gtsam::Point3> &keypoints_3d);
 
 void displayPoses(const std::vector<Eigen::Isometry3d> &poses, const std::vector<gtsam::Point3> &keypoints_3d);
 
@@ -144,7 +146,7 @@ int main(int argc, char** argv) {
     stereo_image1.keypoint_matches_R_L = img1_kp_map;
     std::vector<int> img1_kp_map_L_R(stereo_image1.left_frame.keypoints.size(), -1);
     for (int i = 0; i < img1_kp_map.size(); i++) {
-        img1_kp_map[img1_kp_map[i]] = i;
+        img1_kp_map_L_R[img1_kp_map[i]] = i;
     }
     stereo_image1.keypoint_matches_L_R = img1_kp_map_L_R;
     stereo_image1.right_frame.keypoints_pts = img1_right_kps_pts;
@@ -171,7 +173,7 @@ int main(int argc, char** argv) {
     stereo_image2.keypoint_matches_R_L = img2_kp_map;
     std::vector<int> img2_kp_map_L_R(stereo_image2.left_frame.keypoints.size(), -1);
     for (int i = 0; i < img2_kp_map.size(); i++) {
-        img2_kp_map[img2_kp_map[i]] = i;
+        img2_kp_map_L_R[img2_kp_map[i]] = i;
     }
     stereo_image2.keypoint_matches_L_R = img2_kp_map_L_R;
     stereo_image2.right_frame.keypoints_pts = img2_right_kps_pts;
@@ -188,7 +190,7 @@ int main(int argc, char** argv) {
                         img2_kp_map,
                         img2_left_kps, img2_right_kps_pts,
                         img2_matches);
-
+    // cv::imshow("image1 matches (original)", img1_matches);
 
     //** Triangulation **//
     // camera intrinsic parameters
@@ -209,11 +211,17 @@ int main(int argc, char** argv) {
         for (int j = 0; j < matches_img1_2.size(); j++) {
             // landmark match found between stereo image1 (observations[0]) and stereo image2 (observations[1])
             if (plandmark->observations[0] == matches_img1_2[j].queryIdx) {
+                // push back image2 observation (keypoint index)
                 plandmark->observations.push_back(matches_img1_2[j].trainIdx);
-                stereo_image2.landmarks.push_back(plandmark);
-                img2_landmark_mask[matches_img1_2[j].trainIdx] = 1;
+                // push back image2 measurement (keypoint 3d coordinate in image2 frame)
+                gtsam::Point3 img2_measurement;
+                keyPointTriangulate(stereo_image2, matches_img1_2[j].trainIdx, img2_measurement);
+                plandmark->measurements.push_back(img2_measurement);
 
+                stereo_image2.landmarks.push_back(plandmark);
                 stereo_image2.matching_landmarks_with_last_frame.push_back(plandmark);
+
+                img2_landmark_mask[matches_img1_2[j].trainIdx] = 1;
                 break;
             }
         }
@@ -229,28 +237,13 @@ int main(int argc, char** argv) {
     }
     std::cout << "object points: " << img2_1_kp_map.size() << std::endl;
 
-    // calculate img2_1_kp_map0 (old version)
-    std::vector<int> img2_1_kp_map0;
-    for (int i = 0; i < matches_img1_2.size(); i++) {
-        for (int j = 0; j < img1_kp_map.size(); j++) {
-            if (matches_img1_2[i].queryIdx == img1_kp_map[j]) {
-                // keypoint in camera coordinate (normalized image plane)
-                cv::KeyPoint keypoint = img1_left_kps[matches_img1_2[i].queryIdx];  // image1 keypoint
-                // disparity to depth
-                cv::Point img1_left_kp_pt = keypoint.pt;
-                cv::Point img1_right_kp_pt = img1_right_kps_pts[j];
-                float disparity = img1_left_kp_pt.x - img1_right_kp_pt.x;
-                if (disparity > 0) {
-                    // corresponding image2 keypoint
-                    img2_1_kp_map0.push_back(matches_img1_2[i].queryIdx);
-                }
-            }
-        }
-    }
-
     // draw matches between image1 left & image2 left
     cv::Mat img1_2_matches_temp;
-    stereoFrameDrawMatches(image1_left, image2_left, img2_1_kp_map, stereo_image1.left_frame.keypoints, stereo_image2.left_frame.keypoints, img1_2_matches_temp, 10);
+    std::vector<int> matches_img1_2_map (stereo_image2.left_frame.keypoints.size(), -1);
+    for (cv::DMatch match: matches_img1_2) {
+        matches_img1_2_map[match.trainIdx] = match.queryIdx;
+    }
+    stereoFrameDrawMatches(image1_left, image2_left, matches_img1_2_map, stereo_image1.left_frame.keypoints, stereo_image2.left_frame.keypoints, img1_2_matches_temp);
     cv::imshow("image 1 & 2 matches", img1_2_matches_temp);
 
 
@@ -378,6 +371,8 @@ int main(int argc, char** argv) {
     const auto priorNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1);
     gtsam::Pose3 first_pose;
     // graph.push_back(gtsam::PriorFactor<gtsam::Pose3>(gtsam::Symbol('x', 0), first_pose, priorNoise));
+    // constrain the first pose
+    graph.emplace_shared<gtsam::NonlinearEquality<gtsam::Pose3> >(gtsam::Symbol('x', stereo_image1.id), first_pose);
     // stereo factors
     const auto noiseModel = gtsam::noiseModel::Isotropic::Sigma(3, 1);
     // pose1
@@ -392,10 +387,11 @@ int main(int argc, char** argv) {
             gtsam::Symbol('l', plandmark->id),
             K);
         // initial value of the landmark
-        initial_estimates.insert(gtsam::Symbol('l', plandmark->id), plandmark->measurements[0]);
+        if (!initial_estimates.exists(gtsam::Symbol('l', plandmark->id))) {
+            initial_estimates.insert(gtsam::Symbol('l', plandmark->id), plandmark->measurements[0]);
+        }
     }
     // pose2
-    // TODO landmark 대응관계 정리하기
     for (int j = 0; j < stereo_image2.landmarks.size(); j++) {
         const auto plandmark = stereo_image2.landmarks[j];
         cv::Point left_kp_pt = stereo_image2.left_frame.keypoints_pts[plandmark->observations[1]];
@@ -414,9 +410,8 @@ int main(int argc, char** argv) {
 
     // add initial pose estimates
     initial_estimates.insert(gtsam::Symbol('x', stereo_image1.id), first_pose);
-    initial_estimates.insert(gtsam::Symbol('x', stereo_image2.id), gtsam::Pose3(gtsam::Rot3(best_pose_eigen.rotation()), gtsam::Point3(best_pose_eigen.translation())));
-    // constrain the first pose
-    graph.emplace_shared<gtsam::NonlinearEquality<gtsam::Pose3> >(gtsam::Symbol('x', stereo_image1.id), first_pose);
+    // initial_estimates.insert(gtsam::Symbol('x', stereo_image2.id), gtsam::Pose3(gtsam::Rot3(best_pose_eigen.rotation()), gtsam::Point3(best_pose_eigen.translation())));
+    initial_estimates.insert(gtsam::Symbol('x', stereo_image2.id), gtsam::Pose3());
 
     // optimize
     gtsam::LevenbergMarquardtOptimizer optimizer(graph, initial_estimates);
@@ -430,7 +425,8 @@ int main(int argc, char** argv) {
 
     stereo_image1.pose = result.at<gtsam::Pose3>(gtsam::Symbol('x', stereo_image1.id));
     stereo_image2.pose = result.at<gtsam::Pose3>(gtsam::Symbol('x', stereo_image2.id));
-    result.print("optimization result:\n");
+    // graph.print("graph print:\n");
+    // result.print("optimization result:\n");
 
     gtsam::Pose3 gtsam_pose = result.at<gtsam::Pose3>(gtsam::Symbol('x', stereo_image2.id));
     Eigen::Isometry3d gtsam_pose_eigen;
@@ -452,14 +448,26 @@ int main(int argc, char** argv) {
     poses.push_back(pnp_pose);
     poses.push_back(best_pose_eigen);
     poses.push_back(gtsam_pose_eigen);
+    std::cout << "Poses:" << std::endl;
+    std::cout << "pnp pose:" << std::endl;
+    std::cout << pnp_pose.matrix() << std::endl;
+    std::cout << "opengv RANSAC pose:" << std::endl;
+    std::cout << best_pose_eigen.matrix() << std::endl;
+    std::cout << "gtsam optimized pose:" << std::endl;
+    std::cout << gtsam_pose_eigen.matrix() << std::endl;
 
     // make keypoints vector with image1 and image2 3D keypoints
     keypoints_3d_vec.push_back(keypoints_3d);
     std::vector<gtsam::Point3> img2_keypoints_3d;
-    for (const auto plandmark: stereo_image2.landmarks) {
+    std::cout << "matching landmark size: " << stereo_image2.matching_landmarks_with_last_frame.size() << std::endl;
+    for (const auto plandmark: stereo_image2.matching_landmarks_with_last_frame) {
         img2_keypoints_3d.push_back(plandmark->measurements[1]);
     }
     keypoints_3d_vec.push_back(img2_keypoints_3d);
+    std::cout << "keypoints_3d size: " << keypoints_3d.size() << std::endl;
+    std::cout << "img2_keypoints_3d size: " << img2_keypoints_3d.size() << std::endl;
+    std::cout << "keypoints_3d_vec[0].size: " << keypoints_3d_vec[0].size() <<std::endl;
+    std::cout << "keypoints_3d_vec[1].size: " << keypoints_3d_vec[1].size() <<std::endl;
 
     // display
     // void (*tdisplayPoses)(const std::vector<Eigen::Isometry3d>&, const std::vector<gtsam::Point3>&) = &displayPoses;  // function pointer for overloaded function
@@ -525,11 +533,16 @@ void stereoFrameDrawMatches(const cv::Mat &image_left,
 
     cv::hconcat(left_image_temp, right_image_temp, result_image);
 
+    // default number_matches = -1. Visualize all matches in default
     int visual_matches = (number_matches < 0) ? img_right_kps_pts.size() : number_matches;
 
     for (int i = 0; i < visual_matches; i++) {
         cv::Point left_kp_pt;
         cv::Point right_kp_pt;
+
+        if (img_kp_map[i] == -1) {
+            continue;
+        }
 
         left_kp_pt = img_left_kps[img_kp_map[i]].pt;
         right_kp_pt = img_right_kps_pts[i];
@@ -568,6 +581,22 @@ void stereoFrameDrawMatches(const cv::Mat &image_left,
                         number_matches);
 }
 
+void keyPointTriangulate(const StereoFrame &stereo_image, const int &left_kp_idx, gtsam::Point3 &measurement) {
+    cv::Point2f left_kp_pt = stereo_image.left_frame.keypoints[left_kp_idx].pt;
+    cv::Point2f right_kp_pt = stereo_image.right_frame.keypoints_pts[stereo_image.keypoint_matches_L_R[left_kp_idx]];  //! this could lead out of index
+
+    gtsam::Point3 versor;
+    versor[0] = (left_kp_pt.x - stereo_image.cx) / stereo_image.fx;
+    versor[1] = (left_kp_pt.y - stereo_image.cy) / stereo_image.fx;
+    versor[2] = 1;
+
+    double disparity = left_kp_pt.x - right_kp_pt.x;
+    if (disparity > 0) {
+        double depth = stereo_image.fx * stereo_image.baseline / disparity;
+        measurement = depth * versor;
+    }
+}
+
 void stereoFrameTriangulate(StereoFrame &stereo_image, const std::vector<int> &landmark_mask) {
     // stereo image에서 모든 keypoint의 3D 좌표 계산
     static int landmark_id = 0;
@@ -580,8 +609,8 @@ void stereoFrameTriangulate(StereoFrame &stereo_image, const std::vector<int> &l
         cv::Point2f right_kp_pt = stereo_image.right_frame.keypoints_pts[stereo_image.keypoint_matches_L_R[i]];  //! this could lead out of index
 
         gtsam::Point3 versor;
-        versor[0] = left_kp_pt.x / stereo_image.fx;
-        versor[1] = left_kp_pt.y / stereo_image.fx;
+        versor[0] = (left_kp_pt.x - stereo_image.cx) / stereo_image.fx;
+        versor[1] = (left_kp_pt.y - stereo_image.cy) / stereo_image.fx;
         versor[2] = 1;
 
         double disparity = left_kp_pt.x - right_kp_pt.x;
@@ -590,6 +619,9 @@ void stereoFrameTriangulate(StereoFrame &stereo_image, const std::vector<int> &l
 
             // 3D keypoint is a landmark
             std::shared_ptr<Landmark> plandmark = std::make_shared<Landmark>();
+            plandmark->observations = std::vector<int>(stereo_image.id, -1);
+            plandmark->measurements = std::vector<gtsam::Point3>(stereo_image.id);
+
             plandmark->id = landmark_id;
             plandmark->observations.push_back(stereo_image.keypoint_matches_R_L[i]);
             plandmark->measurements.push_back(depth * versor);
@@ -644,7 +676,7 @@ void convertRt2Isometry(const cv::Mat &rvec, const cv::Mat &tvec, Eigen::Isometr
     pose.matrix().block<3, 1>(0, 3) = translation_eigen;
 }
 
-void displayPoses(const Eigen::Isometry3d &pose, const std::vector<gtsam::Point3> &keypoints_3d) {
+void displayPose(const Eigen::Isometry3d &pose, const std::vector<gtsam::Point3> &keypoints_3d) {
     std::vector<Eigen::Isometry3d> poses;
     poses.push_back(pose);
 
@@ -771,7 +803,7 @@ void displayPosesWithKeyPoints(const std::vector<Eigen::Isometry3d> &poses, cons
         glVertex3f(0, 0, 1);
         glEnd();
 
-        // draw poses[0] map points
+        // draw map points in world coordinate
         glPointSize(5.0f);
         glBegin(GL_POINTS);
         for (int i = 0; i < keypoints_3d_vec[0].size(); i++) {
@@ -782,7 +814,7 @@ void displayPosesWithKeyPoints(const std::vector<Eigen::Isometry3d> &poses, cons
         }
         glEnd();
 
-        // draw poses[1] map points
+        // draw poses[1] map points (OpenGV RANSAC pose)
         glPointSize(5.0f);
         glBegin(GL_POINTS);
         for (int i = 0; i < keypoints_3d_vec[1].size(); i++) {
@@ -793,7 +825,7 @@ void displayPosesWithKeyPoints(const std::vector<Eigen::Isometry3d> &poses, cons
         }
         glEnd();
 
-        // draw poses[2] map points
+        // draw poses[2] map points (GTSAM Optimized pose)
         glPointSize(5.0f);
         glBegin(GL_POINTS);
         for (int i = 0; i < keypoints_3d_vec[1].size(); i++) {
