@@ -1,6 +1,21 @@
 %YAML:1.0
 
-image1_left: /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/left_frames/left_image7280.png
-image1_right: /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/right_frames/right_image7280.png
-image2_left: /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/left_frames/left_image7307.png
-image2_right: /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/right_frames/right_image7307.png
+# # keyframe 1, 2
+# image1_left: /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/left_frames/left_image7280.png
+# image1_right: /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/right_frames/right_image7280.png
+# image2_left: /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/left_frames/left_image7307.png
+# image2_right: /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/right_frames/right_image7307.png
+
+# keyframes (1~5)
+images_left:
+  - /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/left_frames/left_image7280.png
+  - /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/left_frames/left_image7307.png
+  - /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/left_frames/left_image7314.png
+  - /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/left_frames/left_image7321.png
+  - /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/left_frames/left_image7328.png
+images_right:
+  - /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/right_frames/right_image7280.png
+  - /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/right_frames/right_image7307.png
+  - /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/right_frames/right_image7314.png
+  - /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/right_frames/right_image7321.png
+  - /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/right_frames/right_image7328.png

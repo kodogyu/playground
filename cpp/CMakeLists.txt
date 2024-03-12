@@ -12,6 +12,7 @@ find_package(Sophus REQUIRED)
 find_package(Pangolin 0.8 REQUIRED)
 
 message(STATUS "opencv version: ${OpenCV_VERSION}")
+message(STATUS "gtsam path: ${GTSAM_DIR}")
 
 include_directories(
     ${EIGEN3_INCLUDE_DIRS}
