@@ -102,7 +102,7 @@ void displayPoses(const std::vector<Eigen::Isometry3d> &poses, const std::vector
 void displayPosesWithKeyPoints(const std::vector<gtsam::Pose3> &poses, const std::vector<std::vector<gtsam::Point3>> &keypoints_3d_vec);
 
 int main(int argc, char** argv) {
-    //**========== 1. Image load ==========**//
+    //**========== 0. Image load ==========**//
     if (argc != 2) {
         std::cout << "Usage: visual_odometry_example config_yaml" << std::endl;
         return 1;
@@ -111,13 +111,14 @@ int main(int argc, char** argv) {
     cv::FileStorage config_file(argv[1], cv::FileStorage::READ);
     cv::FileNode images_left = config_file["images_left"];
     cv::FileNode images_right = config_file["images_right"];
+    int num_frames = images_left.size();
 
     StereoFrame stereo_image_last, stereo_image_current;
-    std::vector<StereoFrame> stereo_images(5);
+    std::vector<StereoFrame> stereo_images(num_frames);
     cv::Mat image_last_left, image_last_right, image_current_left, image_current_right;
     std::vector<gtsam::Pose3> relative_poses;
     gtsam::Pose3 relative_pose;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < num_frames - 1; i++) {
         image_last_left = cv::imread(images_left[i], cv::IMREAD_GRAYSCALE);
         image_last_right = cv::imread(images_right[i], cv::IMREAD_GRAYSCALE);
         image_current_left = cv::imread(images_left[i + 1], cv::IMREAD_GRAYSCALE);
@@ -184,11 +185,9 @@ int main(int argc, char** argv) {
 
     // make keypoints vector with image1 and image2 3D keypoints
     //? memory?
-    keypoints_3d_vec.push_back(stereo_images[0].keypoints_3d);
-    keypoints_3d_vec.push_back(stereo_images[1].keypoints_3d);
-    keypoints_3d_vec.push_back(stereo_images[2].keypoints_3d);
-    keypoints_3d_vec.push_back(stereo_images[3].keypoints_3d);
-    keypoints_3d_vec.push_back(stereo_images[4].keypoints_3d);
+    for (int i = 0; i < num_frames; i++) {
+        keypoints_3d_vec.push_back(stereo_images[i].keypoints_3d);
+    }
 
     cv::waitKey(0);
     cv::destroyAllWindows();
@@ -204,7 +203,7 @@ int main(int argc, char** argv) {
 void stereoFrameTrack(StereoFrame &last_stereo_image,
                     StereoFrame &current_stereo_image,
                     gtsam::Pose3 &relative_pose) {
-    //** Feature extraction **//
+    //**========== 1. Feature extraction ==========**//
     cv::Mat *pimage1_left = &last_stereo_image.left_frame.image;
     cv::Mat *pimage2_left = &current_stereo_image.left_frame.image;
     cv::Mat *pimage1_right = &last_stereo_image.right_frame.image;
@@ -416,8 +415,8 @@ void stereoFrameTrack(StereoFrame &last_stereo_image,
         const auto plandmark = current_stereo_image.matching_landmarks_with_last_frame[i];
         cv::Point2f keypoint = img2_left_kp_pts[plandmark->observations[1]];
         gtsam::Point3 versor;
-        versor[0] = keypoint_pt.x / fx;
-        versor[1] = keypoint_pt.y / fx;
+        versor[0] = keypoint.x / fx;
+        versor[1] = keypoint.y / fx;
         versor[2] = 1;
         bearing_vectors.push_back(versor.normalized());
         W_points.push_back(plandmark->measurements[0]);
@@ -460,8 +459,8 @@ void stereoFrameTrack(StereoFrame &last_stereo_image,
     // stereo camera calibration object
     gtsam::Cal3_S2Stereo::shared_ptr K(
         new gtsam::Cal3_S2Stereo(fx, fy, 0, cx, cy, baseline));
-    stereo_image1.K = K;
-    stereo_image2.K = K;
+    last_stereo_image.K = K;
+    current_stereo_image.K = K;
 
     // create initial values
     gtsam::Values initial_estimates;
@@ -475,7 +474,7 @@ void stereoFrameTrack(StereoFrame &last_stereo_image,
     // stereo factors
     const auto noiseModel = gtsam::noiseModel::Isotropic::Sigma(3, 1);
     // pose1
-    insertFactorsAndValues(graph, initial_estimates, noiseModel, stereo_image1);
+    insertFactorsAndValues(graph, initial_estimates, noiseModel, last_stereo_image);
     // for (int i = 0; i < stereo_image1.landmarks.size(); i++) {
     //     const auto plandmark = stereo_image1.landmarks[i];
     //     cv::Point left_kp_pt = stereo_image1.left_frame.keypoints_pts[plandmark->observations[0]];
@@ -492,7 +491,7 @@ void stereoFrameTrack(StereoFrame &last_stereo_image,
     //     }
     // }
     // pose2
-    insertFactorsAndValues(graph, initial_estimates, noiseModel, stereo_image2);
+    insertFactorsAndValues(graph, initial_estimates, noiseModel, current_stereo_image);
     // for (int j = 0; j < stereo_image2.landmarks.size(); j++) {
     //     const auto plandmark = stereo_image2.landmarks[j];
     //     cv::Point left_kp_pt = stereo_image2.left_frame.keypoints_pts[plandmark->observations[1]];
