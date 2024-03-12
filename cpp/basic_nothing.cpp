@@ -4,15 +4,17 @@
 using namespace std;
 
 int main() {
-  vector<int> v;
-  v.reserve(3);
+  vector<int> v(3, 1);
+  cout << "vector size: " << v.size() << endl;
 
-  cout << "after reserve: " << v.size() << endl;
+  for (int elem: v) {
+    cout << "elem: " << elem << endl;
+  }
 
-  v.push_back(3);
-  cout << "after push back: " << v.size() << endl;
+  cout << "vector[-1]: " << v[-1] << endl;
 
-  cout << "what: " << std::vector<int>{0, 1, 2}.size() << endl;
-
+  vector<int> v0(0, 3);
+  v0.push_back(2);
+  cout << "v0: " << *v0.begin() << endl;
   return 0;
 }
