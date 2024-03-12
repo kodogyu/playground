@@ -45,6 +45,7 @@ struct StereoFrame {
 
     gtsam::Pose3 pose;
 
+    gtsam::Cal3_S2Stereo::shared_ptr K;
     double fx = 620.070096090849;
     double fy = 618.2102185572654;
     double cx = 325.29844703787114;
@@ -78,6 +79,11 @@ void keyPointTriangulate(const StereoFrame &stereo_image, const int &left_kp_idx
 
 void stereoFrameTriangulate(StereoFrame &stereo_image, const std::vector<int> &landmark_mask);
 
+void insertFactorsAndValues(gtsam::NonlinearFactorGraph &graph,
+                            gtsam::Values &initial_estimates,
+                            const gtsam::noiseModel::Isotropic::shared_ptr& noiseModel,
+                            const StereoFrame &stereo_image);
+
 void writeVectors(const cv::Mat &rvec, const cv::Mat &tvec);
 
 void writeBestPose(const Eigen::Isometry3d &best_pose);
@@ -91,7 +97,7 @@ void displayPoses(const std::vector<Eigen::Isometry3d> &poses, const std::vector
 void displayPosesWithKeyPoints(const std::vector<Eigen::Isometry3d> &poses, const std::vector<std::vector<gtsam::Point3>> &keypoints_3d_vec);
 
 int main(int argc, char** argv) {
-    //** Image load **//
+    //**========== 1. Image load ==========**//
     if (argc != 2) {
         std::cout << "Usage: visual_odometry_example config_yaml" << std::endl;
         return 1;
@@ -134,7 +140,7 @@ int main(int argc, char** argv) {
         stereo_image2.left_frame.keypoints_pts.push_back(kp.pt);
     }
 
-    //** Feature matching **//
+    //**========== 2. Feature matching ==========**//
     // create a matcher
     cv::Ptr<cv::DescriptorMatcher> orb_matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::BRUTEFORCE);
 
@@ -192,7 +198,7 @@ int main(int argc, char** argv) {
                         img2_matches);
     // cv::imshow("image1 matches (original)", img1_matches);
 
-    //** Triangulation **//
+    //**========== 3. Triangulation ==========**//
     // camera intrinsic parameters
     double fx = 620.070096090849;
     double fy = 618.2102185572654;
@@ -247,7 +253,7 @@ int main(int argc, char** argv) {
     cv::imshow("image 1 & 2 matches", img1_2_matches_temp);
 
 
-    //** PnP algorithm **//
+    //**========== 4. PnP algorithm ==========**//
     cv::Mat cameraMatrix(cv::Size(3, 3), CV_8UC1);
     cv::Mat distCoeffs(cv::Size(4, 1), CV_8UC1);
     cv::Mat rvec, tvec;
@@ -309,17 +315,17 @@ int main(int argc, char** argv) {
     std::cout << "rotation matrix: " << rotationMatrix << std::endl;
     std::cout << "tvec: " << tvec << std::endl;
 
-    //** OpenGV RANSAC **//
+    //**========== 5. OpenGV RANSAC ==========**//
     // get bearing vectors, world points
     opengv::bearingVectors_t bearing_vectors;
     opengv::points_t W_points;
 
     for (int i = 0; i < stereo_image2.matching_landmarks_with_last_frame.size(); i++) {
         const auto plandmark = stereo_image2.matching_landmarks_with_last_frame[i];
-        cv::Point2f keypoint = img2_left_kp_pts[plandmark->observations[1]];
+        cv::Point2f keypoint_pt = img2_left_kp_pts[plandmark->observations[1]];
         gtsam::Point3 versor;
-        versor[0] = keypoint.x / fx;
-        versor[1] = keypoint.y / fx;
+        versor[0] = keypoint_pt.x / fx;
+        versor[1] = keypoint_pt.y / fx;
         versor[2] = 1;
         bearing_vectors.push_back(versor.normalized());
         W_points.push_back(plandmark->measurements[0]);
@@ -356,12 +362,14 @@ int main(int argc, char** argv) {
     opengv::transformation_t best_pose = ransac.model_coefficients_;
     Eigen::Isometry3d best_pose_eigen(best_pose);
 
-    //** GTSAM optimize **//
+    //**========== 6. GTSAM optimize ==========**//
     // create a graph
     gtsam::NonlinearFactorGraph graph;
     // stereo camera calibration object
     gtsam::Cal3_S2Stereo::shared_ptr K(
         new gtsam::Cal3_S2Stereo(fx, fy, 0, cx, cy, baseline));
+    stereo_image1.K = K;
+    stereo_image2.K = K;
 
     // create initial values
     gtsam::Values initial_estimates;
@@ -370,48 +378,50 @@ int main(int argc, char** argv) {
     // prior factor
     const auto priorNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1);
     gtsam::Pose3 first_pose;
-    // graph.push_back(gtsam::PriorFactor<gtsam::Pose3>(gtsam::Symbol('x', 0), first_pose, priorNoise));
     // constrain the first pose
     graph.emplace_shared<gtsam::NonlinearEquality<gtsam::Pose3> >(gtsam::Symbol('x', stereo_image1.id), first_pose);
+
     // stereo factors
     const auto noiseModel = gtsam::noiseModel::Isotropic::Sigma(3, 1);
     // pose1
-    for (int i = 0; i < stereo_image1.landmarks.size(); i++) {
-        const auto plandmark = stereo_image1.landmarks[i];
-        cv::Point left_kp_pt = stereo_image1.left_frame.keypoints_pts[plandmark->observations[0]];
-        cv::Point right_kp_pt = stereo_image1.right_frame.keypoints_pts[i];
-        graph.emplace_shared<gtsam::GenericStereoFactor<gtsam::Pose3, gtsam::Point3>>(
-            gtsam::StereoPoint2(left_kp_pt.x, right_kp_pt.x, left_kp_pt.y),
-            noiseModel,
-            gtsam::Symbol('x', stereo_image1.id),
-            gtsam::Symbol('l', plandmark->id),
-            K);
-        // initial value of the landmark
-        if (!initial_estimates.exists(gtsam::Symbol('l', plandmark->id))) {
-            initial_estimates.insert(gtsam::Symbol('l', plandmark->id), plandmark->measurements[0]);
-        }
-    }
+    insertFactorsAndValues(graph, initial_estimates, noiseModel, stereo_image1);
+    // for (int i = 0; i < stereo_image1.landmarks.size(); i++) {
+    //     const auto plandmark = stereo_image1.landmarks[i];
+    //     cv::Point left_kp_pt = stereo_image1.left_frame.keypoints_pts[plandmark->observations[0]];
+    //     cv::Point right_kp_pt = stereo_image1.right_frame.keypoints_pts[i];
+    //     graph.emplace_shared<gtsam::GenericStereoFactor<gtsam::Pose3, gtsam::Point3>>(
+    //         gtsam::StereoPoint2(left_kp_pt.x, right_kp_pt.x, left_kp_pt.y),
+    //         noiseModel,
+    //         gtsam::Symbol('x', stereo_image1.id),
+    //         gtsam::Symbol('l', plandmark->id),
+    //         K);
+    //     // initial value of the landmark
+    //     if (!initial_estimates.exists(gtsam::Symbol('l', plandmark->id))) {
+    //         initial_estimates.insert(gtsam::Symbol('l', plandmark->id), plandmark->measurements[0]);
+    //     }
+    // }
     // pose2
-    for (int j = 0; j < stereo_image2.landmarks.size(); j++) {
-        const auto plandmark = stereo_image2.landmarks[j];
-        cv::Point left_kp_pt = stereo_image2.left_frame.keypoints_pts[plandmark->observations[1]];
-        cv::Point right_kp_pt = stereo_image2.right_frame.keypoints_pts[j];
-        graph.emplace_shared<gtsam::GenericStereoFactor<gtsam::Pose3, gtsam::Point3>>(
-            gtsam::StereoPoint2(left_kp_pt.x, right_kp_pt.x, left_kp_pt.y),
-            noiseModel,
-            gtsam::Symbol('x', stereo_image2.id),
-            gtsam::Symbol('l', plandmark->id),
-            K);
-        // initial value of the landmark
-        if (!initial_estimates.exists(gtsam::Symbol('l', plandmark->id))) {
-            initial_estimates.insert(gtsam::Symbol('l', plandmark->id), plandmark->measurements[1]);
-        }
-    }
+    insertFactorsAndValues(graph, initial_estimates, noiseModel, stereo_image2);
+    // for (int j = 0; j < stereo_image2.landmarks.size(); j++) {
+    //     const auto plandmark = stereo_image2.landmarks[j];
+    //     cv::Point left_kp_pt = stereo_image2.left_frame.keypoints_pts[plandmark->observations[1]];
+    //     cv::Point right_kp_pt = stereo_image2.right_frame.keypoints_pts[j];
+    //     graph.emplace_shared<gtsam::GenericStereoFactor<gtsam::Pose3, gtsam::Point3>>(
+    //         gtsam::StereoPoint2(left_kp_pt.x, right_kp_pt.x, left_kp_pt.y),
+    //         noiseModel,
+    //         gtsam::Symbol('x', stereo_image2.id),
+    //         gtsam::Symbol('l', plandmark->id),
+    //         K);
+    //     // initial value of the landmark
+    //     if (!initial_estimates.exists(gtsam::Symbol('l', plandmark->id))) {
+    //         initial_estimates.insert(gtsam::Symbol('l', plandmark->id), plandmark->measurements[1]);
+    //     }
+    // }
 
     // add initial pose estimates
     initial_estimates.insert(gtsam::Symbol('x', stereo_image1.id), first_pose);
-    // initial_estimates.insert(gtsam::Symbol('x', stereo_image2.id), gtsam::Pose3(gtsam::Rot3(best_pose_eigen.rotation()), gtsam::Point3(best_pose_eigen.translation())));
-    initial_estimates.insert(gtsam::Symbol('x', stereo_image2.id), gtsam::Pose3());
+    initial_estimates.insert(gtsam::Symbol('x', stereo_image2.id), gtsam::Pose3(gtsam::Rot3(best_pose_eigen.rotation()), gtsam::Point3(best_pose_eigen.translation())));
+    // initial_estimates.insert(gtsam::Symbol('x', stereo_image2.id), gtsam::Pose3());
 
     // optimize
     gtsam::LevenbergMarquardtOptimizer optimizer(graph, initial_estimates);
@@ -425,7 +435,8 @@ int main(int argc, char** argv) {
 
     stereo_image1.pose = result.at<gtsam::Pose3>(gtsam::Symbol('x', stereo_image1.id));
     stereo_image2.pose = result.at<gtsam::Pose3>(gtsam::Symbol('x', stereo_image2.id));
-    // graph.print("graph print:\n");
+    graph.print("graph print:\n");
+    graph.printErrors(result);
     // result.print("optimization result:\n");
 
     gtsam::Pose3 gtsam_pose = result.at<gtsam::Pose3>(gtsam::Symbol('x', stereo_image2.id));
@@ -433,7 +444,7 @@ int main(int argc, char** argv) {
     gtsam_pose_eigen.matrix().block<3, 3>(0, 0) = gtsam_pose.rotation().matrix();
     gtsam_pose_eigen.matrix().block<3, 1>(0, 3) = gtsam_pose.translation().matrix();
 
-    //** Visualize **//
+    //**========== 7. Visualize ==========**//
     // write rotation, translation vector to .csv file
     writeVectors(rvec, tvec);
     writeBestPose(best_pose_eigen);
@@ -631,6 +642,28 @@ void stereoFrameTriangulate(StereoFrame &stereo_image, const std::vector<int> &l
         }
     }
 
+}
+
+void insertFactorsAndValues(gtsam::NonlinearFactorGraph &graph,
+                            gtsam::Values &initial_estimates,
+                            const gtsam::noiseModel::Isotropic::shared_ptr& noiseModel,
+                            const StereoFrame &stereo_image) {
+    for (int i = 0; i < stereo_image.landmarks.size(); i++) {
+        const auto plandmark = stereo_image.landmarks[i];
+        cv::Point left_kp_pt = stereo_image.left_frame.keypoints_pts[plandmark->observations[stereo_image.id]];
+        cv::Point right_kp_pt = stereo_image.right_frame.keypoints_pts[i];
+
+        graph.emplace_shared<gtsam::GenericStereoFactor<gtsam::Pose3, gtsam::Point3>>(
+            gtsam::StereoPoint2(left_kp_pt.x, right_kp_pt.x, left_kp_pt.y),
+            noiseModel,
+            gtsam::Symbol('x', stereo_image.id),
+            gtsam::Symbol('l', plandmark->id),
+            stereo_image.K);
+        // initial value of the landmark
+        if (!initial_estimates.exists(gtsam::Symbol('l', plandmark->id))) {
+            initial_estimates.insert(gtsam::Symbol('l', plandmark->id), plandmark->measurements[stereo_image.id]);
+        }
+    }
 }
 
 void writeVectors(const cv::Mat &rvec, const cv::Mat &tvec) {

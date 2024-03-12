@@ -24,6 +24,7 @@ include_directories(
 ##=========================EXECUTABLES=========================##
 # STL files
 add_executable(basic_copy_array basic_copy_array.cpp)
+add_executable(basic_static basic_static.cpp)
 add_executable(basic_file basic_file.cpp)
 add_executable(basic_nothing basic_nothing.cpp)
 add_executable(basic_unordered_map basic_unordered_map.cpp)
