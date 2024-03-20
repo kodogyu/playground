@@ -8,7 +8,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.distributions import Categorical
 
 
 class Policy(nn.Module):
@@ -18,7 +17,6 @@ class Policy(nn.Module):
 
         self.fc1 = nn.Linear(4, 128)
         self.fc2 = nn.Linear(128, 2)
-        # self.optimizer = optim.Adam(self.parameters(), lr=learning_rate)
 
     def forward(self, x):
         x = F.relu(self.fc1(x))
@@ -51,7 +49,6 @@ def main():
     env = gym.make('CartPole-v1', render_mode="human")
     pi = Policy()
     pi.load_state_dict(torch.load("model_parameters/ch9_REINFORCE.pt").state_dict())
-    # pi.load_state_dict(torch.load("model_parameters/ch9_REINFORCE.pt"))
 
     score = 0.0
     s, _ = env.reset()
@@ -63,7 +60,7 @@ def main():
         prob = pi(torch.from_numpy(s).float())  # action probability
         a = np.argmax(prob.detach().numpy())  # get maximum action
         s_prime, r, done, truncated, info = env.step(a)  # step once
-        s = s_prime  # status change
+        s = s_prime  # change state
         score += r  # accumulate reward
 
         display_status(n_epi, score, a)
