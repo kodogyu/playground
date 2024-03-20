@@ -8,9 +8,9 @@ int main() {
   // vector<int> v(3, 1);
   // cout << "vector size: " << v.size() << endl;
 
-  for (int elem: v) {
-    // cout << "elem: " << elem << endl;
-  }
+  // for (int elem: v) {
+  //   cout << "elem: " << elem << endl;
+  // }
 
   // v.push_back(3);
   // cout << "after push back: " << v.size() << endl;
