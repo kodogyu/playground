@@ -6,7 +6,7 @@ cpp/build/
 cpp/files/visual_odometry_example.csv
 
 # python
-python/__pycache__
+**/__pycache__
 
 # rosbags
 test_rosbags/
