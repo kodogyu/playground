@@ -269,24 +269,17 @@ void stereoFrameTrack(StereoFrame &last_stereo_image,
                     StereoFrame &current_stereo_image,
                     gtsam::Pose3 &relative_pose) {
     //**========== 1. Feature extraction ==========**//
-    cv::Mat *pimage1_left = &last_stereo_image.left_frame.image;
     cv::Mat *pimage2_left = &current_stereo_image.left_frame.image;
-    cv::Mat *pimage1_right = &last_stereo_image.right_frame.image;
     cv::Mat *pimage2_right = &current_stereo_image.right_frame.image;
-    std::vector<cv::KeyPoint> img1_left_kps;
     cv::Mat img1_left_descriptors;
     std::vector<cv::KeyPoint> img2_left_kps;
     cv::Mat img2_left_descriptors;
     // create orb feature extractor
     cv::Ptr<cv::ORB> orb = cv::ORB::create();
 
-    orb->detectAndCompute(*pimage1_left, cv::Mat(), img1_left_kps, img1_left_descriptors);
+    orb->detectAndCompute(last_stereo_image.left_frame.image, cv::Mat(), last_stereo_image.left_frame.keypoints, img1_left_descriptors);
     orb->detectAndCompute(*pimage2_left, cv::Mat(), img2_left_kps, img2_left_descriptors);
-    last_stereo_image.left_frame.keypoints = img1_left_kps;
     current_stereo_image.left_frame.keypoints = img2_left_kps;
-    for (const auto kp: img1_left_kps) {
-        last_stereo_image.left_frame.keypoints_pts.push_back(kp.pt);
-    }
     for (const auto kp: img2_left_kps) {
         current_stereo_image.left_frame.keypoints_pts.push_back(kp.pt);
     }
@@ -373,7 +366,7 @@ void stereoFrameTrack(StereoFrame &last_stereo_image,
     for (cv::DMatch match: matches_img1_2) {
         matches_img1_2_map[match.trainIdx] = match.queryIdx;
     }
-    stereoFrameDrawMatches(*pimage1_left,
+    stereoFrameDrawMatches(last_stereo_image.left_frame.image,
                             *pimage2_left,
                             matches_img1_2_map,
                             last_stereo_image.left_frame.keypoints,
