@@ -4,6 +4,8 @@
 #include <fstream>
 #include <thread>
 #include <chrono>
+#include <filesystem>
+#include <algorithm>
 
 #include <Eigen/Dense>
 
@@ -17,6 +19,7 @@
 #include <gtsam/geometry/Pose3.h>
 #include <gtsam/slam/PriorFactor.h>
 #include <gtsam/slam/StereoFactor.h>
+#include <gtsam/slam/ProjectionFactor.h>
 #include <gtsam/inference/Symbol.h>
 #include <gtsam/nonlinear/NonlinearFactorGraph.h>
 #include <gtsam/nonlinear/NonlinearEquality.h>
@@ -49,10 +52,12 @@ struct StereoFrame {
     gtsam::Cal3_S2Stereo::shared_ptr K;
     double fx = 620.070096090849;
     double fy = 618.2102185572654;
+    double s = 0.0;
     double cx = 325.29844703787114;
     double cy = 258.48711395621467;
     double baseline = 0.008;  // baseline = 0.008m (=8mm)
 };
+void bootStrap(StereoFrame &stereo_image);
 
 void stereoFrameTrack(StereoFrame &last_stereo_image,
                     StereoFrame &current_stereo_image,
@@ -109,43 +114,58 @@ int main(int argc, char** argv) {
     }
 
     cv::FileStorage config_file(argv[1], cv::FileStorage::READ);
-    cv::FileNode images_left = config_file["images_left"];
-    cv::FileNode images_right = config_file["images_right"];
-    int num_frames = images_left.size();
+    int num_frames = config_file["num_frames"];
+    std::vector<std::string> left_image_entries, right_image_entries;
+    // left & right image sequence directory
+    std::filesystem::path left_images_dir(config_file["left_images_dir"]), right_images_dir(config_file["right_images_dir"]);
+    std::filesystem::directory_iterator left_images_itr(left_images_dir), right_images_itr(right_images_dir);
 
-    StereoFrame stereo_image_last, stereo_image_current;
-    std::vector<StereoFrame> stereo_images(num_frames);
-    cv::Mat image_last_left, image_last_right, image_current_left, image_current_right;
-    std::vector<gtsam::Pose3> relative_poses;
+    // this reads all image entries. Therefore length of the image entry vector may larger than the 'num_frames'
+    while (left_images_itr != std::filesystem::end(left_images_itr)) {
+        const std::filesystem::directory_entry left_image_entry = *left_images_itr;
+        const std::filesystem::directory_entry right_image_entry = *right_images_itr;
+
+        left_image_entries.push_back(left_image_entry.path());
+        right_image_entries.push_back(right_image_entry.path());
+
+        left_images_itr++;
+        right_images_itr++;
+    }
+    // sort entry vectors
+    std::sort(left_image_entries.begin(), left_image_entries.end());
+    std::sort(right_image_entries.begin(), right_image_entries.end());
+
+
+    cv::Mat image_first_left, image_first_right, image_current_left, image_current_right;
+    std::vector<std::shared_ptr<StereoFrame>> pStereo_images;
+    pStereo_images.reserve(num_frames);
     gtsam::Pose3 relative_pose;
-    for (int i = 0; i < num_frames - 1; i++) {
-        image_last_left = cv::imread(images_left[i], cv::IMREAD_GRAYSCALE);
-        image_last_right = cv::imread(images_right[i], cv::IMREAD_GRAYSCALE);
-        image_current_left = cv::imread(images_left[i + 1], cv::IMREAD_GRAYSCALE);
-        image_current_right = cv::imread(images_right[i + 1], cv::IMREAD_GRAYSCALE);
+    std::vector<gtsam::Pose3> relative_poses;
+    // empty last stereo frame
+    std::shared_ptr<StereoFrame> pStereo_image_last = std::make_shared<StereoFrame>();
+    for (int i = 0; i < num_frames; i++) {
+        // read images
+        image_current_left = cv::imread(left_image_entries[i + 1], cv::IMREAD_GRAYSCALE);
+        image_current_right = cv::imread(right_image_entries[i + 1], cv::IMREAD_GRAYSCALE);
 
+        std::shared_ptr<StereoFrame> pStereo_image_current = std::make_shared<StereoFrame>();
+
+        pStereo_image_current->id = i;
+        pStereo_image_current->left_frame.image = image_current_left;
+        pStereo_image_current->right_frame.image = image_current_right;
+        pStereo_images.push_back(pStereo_image_current);
+
+        // initialize
         if (i == 0) {
-            stereo_image_last.id = 0;
-            stereo_image_last.left_frame.image = image_last_left;
-            stereo_image_last.right_frame.image = image_last_right;
-            stereo_image_current.id = 1;
-            stereo_image_current.left_frame.image = image_current_left;
-            stereo_image_current.right_frame.image = image_current_right;
-
-            stereo_images.push_back(stereo_image_last);
-            stereo_images.push_back(stereo_image_current);
+            bootStrap(*pStereo_image_current);
         }
         else {
-            stereo_image_last = stereo_image_current;
-            stereo_image_current.id = i + 1;
-            stereo_image_current.left_frame.image = image_current_left;
-            stereo_image_current.right_frame.image = image_current_right;
-
-            stereo_images.push_back(stereo_image_current);
+            stereoFrameTrack(*pStereo_image_last, *pStereo_image_current, relative_pose);
+            relative_poses.push_back(relative_pose);
         }
 
-        stereoFrameTrack(stereo_image_last, stereo_image_current, relative_pose);
-        relative_poses.push_back(relative_pose);
+        // move on
+        pStereo_image_last = pStereo_image_current;
     }
 
 
@@ -186,7 +206,7 @@ int main(int argc, char** argv) {
     // make keypoints vector with image1 and image2 3D keypoints
     //? memory?
     for (int i = 0; i < num_frames; i++) {
-        keypoints_3d_vec.push_back(stereo_images[i].keypoints_3d);
+        keypoints_3d_vec.push_back(pStereo_images[i]->keypoints_3d);
     }
 
     cv::waitKey(0);
@@ -198,6 +218,51 @@ int main(int argc, char** argv) {
     // display_thread.join();
 
     return 0;
+}
+
+void bootStrap(StereoFrame &stereo_image) {
+    //**========== 1. Feature extraction ==========**//
+    cv::Mat *pimage_left = &stereo_image.left_frame.image;
+    cv::Mat *pimage_right = &stereo_image.right_frame.image;
+    std::vector<cv::KeyPoint> img_left_kps;
+    cv::Mat img_left_descriptors;
+    // create orb feature extractor
+    cv::Ptr<cv::ORB> orb = cv::ORB::create();
+
+    orb->detectAndCompute(*pimage_left, cv::Mat(), img_left_kps, img_left_descriptors);
+    stereo_image.left_frame.keypoints = img_left_kps;
+    for (const auto kp: img_left_kps) {
+        stereo_image.left_frame.keypoints_pts.push_back(kp.pt);
+    }
+
+    //**========== 2. Feature matching ==========**//
+    // create a matcher
+    cv::Ptr<cv::DescriptorMatcher> orb_matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::BRUTEFORCE);
+
+    // image1 left & right (template matching)
+    std::vector<int> img1_kp_map;
+    std::vector<cv::Point2f> img1_right_kps_pts;
+    stereoFrameMatchTemplate(*pimage_left, *pimage_right,
+                            img_left_kps, img1_kp_map, img1_right_kps_pts);
+    stereo_image.keypoint_matches_R_L = img1_kp_map;
+    std::vector<int> img1_kp_map_L_R(stereo_image.left_frame.keypoints.size(), -1);
+    for (int i = 0; i < img1_kp_map.size(); i++) {
+        img1_kp_map_L_R[img1_kp_map[i]] = i;
+    }
+    stereo_image.keypoint_matches_L_R = img1_kp_map_L_R;
+    stereo_image.right_frame.keypoints_pts = img1_right_kps_pts;
+
+    // Logging keypoint matches
+    cv::Mat img_matches;
+    stereoFrameDrawMatches(*pimage_left, *pimage_right,
+                        stereo_image.keypoint_matches_R_L,
+                        img_left_kps, stereo_image.right_frame.keypoints_pts,
+                        img_matches);
+    cv::imwrite("images/vo_logs/intra_frame/frame" + std::to_string(stereo_image.id) + "_kp_matches(raw).png", img_matches);
+
+    //**========== 3. Triangulation ==========**//
+    std::vector<int> landmark_mask(stereo_image.left_frame.keypoints.size());
+    stereoFrameTriangulate(stereo_image, landmark_mask);
 }
 
 void stereoFrameTrack(StereoFrame &last_stereo_image,
@@ -226,29 +291,17 @@ void stereoFrameTrack(StereoFrame &last_stereo_image,
         current_stereo_image.left_frame.keypoints_pts.push_back(kp.pt);
     }
 
+    //TODO matched keypoint filtering (RANSAC?)
     //**========== 2. Feature matching ==========**//
     // create a matcher
     cv::Ptr<cv::DescriptorMatcher> orb_matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::BRUTEFORCE);
 
-    // image1 left & right (template matching)
-    std::vector<int> img1_kp_map;
-    std::vector<cv::Point2f> img1_right_kps_pts;
-    stereoFrameMatchTemplate(*pimage1_left, *pimage1_right,
-                            img1_left_kps, img1_kp_map, img1_right_kps_pts);
-    last_stereo_image.keypoint_matches_R_L = img1_kp_map;
-    std::vector<int> img1_kp_map_L_R(last_stereo_image.left_frame.keypoints.size(), -1);
-    for (int i = 0; i < img1_kp_map.size(); i++) {
-        img1_kp_map_L_R[img1_kp_map[i]] = i;
-    }
-    last_stereo_image.keypoint_matches_L_R = img1_kp_map_L_R;
-    last_stereo_image.right_frame.keypoints_pts = img1_right_kps_pts;
-
     // image1 left & image2 left (matcher matching)
     std::vector<std::vector<cv::DMatch>> matches_img1_2_vec;
-    double between_dist_thresh = 0.65;
+    double between_dist_thresh = 0.60;
     orb_matcher->knnMatch(img1_left_descriptors, img2_left_descriptors, matches_img1_2_vec, 2);
 
-    std::vector<cv::DMatch> matches_img1_2;
+    std::vector<cv::DMatch> matches_img1_2;  // good matchings
     for (int i = 0; i < matches_img1_2_vec.size(); i++) {
         if (matches_img1_2_vec[i][0].distance < matches_img1_2_vec[i][1].distance * between_dist_thresh) {
             matches_img1_2.push_back(matches_img1_2_vec[i][0]);
@@ -271,38 +324,23 @@ void stereoFrameTrack(StereoFrame &last_stereo_image,
     current_stereo_image.right_frame.keypoints_pts = img2_right_kps_pts;
 
     // draw matches
-    cv::Mat img1_matches, img2_matches;
-    // image1 left & right matches
-    stereoFrameDrawMatches(*pimage1_left, *pimage1_right,
-                        img1_kp_map,
-                        img1_left_kps, img1_right_kps_pts,
-                        img1_matches);
+    cv::Mat img2_matches;
     // image2 left & right matches
     stereoFrameDrawMatches(*pimage2_left, *pimage2_right,
                         img2_kp_map,
                         img2_left_kps, img2_right_kps_pts,
                         img2_matches);
-    // cv::imshow("image1 matches (original)", img1_matches);
+    cv::imwrite("images/vo_logs/intra_frame/frame" + std::to_string(current_stereo_image.id) + "_kp_matches(raw).png", img2_matches);
 
     //**========== 3. Triangulation ==========**//
-    // camera intrinsic parameters
-    double fx = 620.070096090849;
-    double fy = 618.2102185572654;
-    double cx = 325.29844703787114;
-    double cy = 258.48711395621467;
-    double baseline = 0.008;  // baseline = 0.008m (=8mm)
-
-    // stereo image1에서 모든 keypoint의 3D 좌표 계산
-    std::vector<int> img1_landmark_mask(last_stereo_image.left_frame.keypoints.size(), 0);
-    stereoFrameTriangulate(last_stereo_image, img1_landmark_mask);
-    std::cout << "landmarks in image1: " << last_stereo_image.landmarks.size() << std::endl;
+    std::cout << "landmarks in last frame: " << last_stereo_image.landmarks.size() << std::endl;
 
     // image2에서 image1과 중복되는 landmark 검출
     std::vector<int> img2_landmark_mask(current_stereo_image.left_frame.keypoints.size(), 0);
     for (auto plandmark: last_stereo_image.landmarks) {
         for (int j = 0; j < matches_img1_2.size(); j++) {
             // landmark match found between stereo image1 (observations[0]) and stereo image2 (observations[1])
-            if (plandmark->observations[0] == matches_img1_2[j].queryIdx) {
+            if (plandmark->observations[last_stereo_image.id] == matches_img1_2[j].queryIdx) {
                 // push back image2 observation (keypoint index)
                 plandmark->observations.push_back(matches_img1_2[j].trainIdx);
                 // push back image2 measurement (keypoint 3d coordinate in image2 frame)
@@ -320,7 +358,7 @@ void stereoFrameTrack(StereoFrame &last_stereo_image,
     }
     // image2에서 image1과 중복되지 않는 landmark 계산
     stereoFrameTriangulate(current_stereo_image, img2_landmark_mask);
-    std::cout << "landmarks in image2: " << current_stereo_image.landmarks.size() << std::endl;
+    std::cout << "landmarks in current frame: " << current_stereo_image.landmarks.size() << std::endl;
 
     // calculate img2_1_kp_map
     std::vector<int> img2_1_kp_map;
@@ -341,7 +379,12 @@ void stereoFrameTrack(StereoFrame &last_stereo_image,
                             last_stereo_image.left_frame.keypoints,
                             current_stereo_image.left_frame.keypoints,
                             img1_2_matches_temp);
-    cv::imshow("image 1 & 2 matches", img1_2_matches_temp);
+    cv::imshow("last frame & current frame matches", img1_2_matches_temp);
+    cv::imwrite("images/vo_logs/inter_frames/frame"
+                + std::to_string(last_stereo_image.id)
+                + "&"
+                + std::to_string(current_stereo_image.id)
+                + "_kp_matches(filtered).png", img1_2_matches_temp);
 
 
     //**========== 4. PnP algorithm ==========**//
@@ -349,20 +392,16 @@ void stereoFrameTrack(StereoFrame &last_stereo_image,
     cv::Mat distCoeffs(cv::Size(4, 1), CV_8UC1);
     cv::Mat rvec, tvec;
 
-    cameraMatrix.at<float>(0, 0) = fx;
+    cameraMatrix.at<float>(0, 0) = current_stereo_image.fx;
     cameraMatrix.at<float>(0, 1) = 0;
-    cameraMatrix.at<float>(0, 2) = cx;
+    cameraMatrix.at<float>(0, 2) = current_stereo_image.cx;
     cameraMatrix.at<float>(1, 0) = 0;
-    cameraMatrix.at<float>(1, 1) = fy;
-    cameraMatrix.at<float>(1, 2) = cy;
+    cameraMatrix.at<float>(1, 1) = current_stereo_image.fy;
+    cameraMatrix.at<float>(1, 2) = current_stereo_image.cy;
     cameraMatrix.at<float>(2, 0) = 0;
     cameraMatrix.at<float>(2, 1) = 0;
     cameraMatrix.at<float>(2, 2) = 1;
 
-    // distCoeffs.at<float>(0,0) = 0;   // rvec: [0.7220963272379515; 0.4954686910202425; -1.216350494376585] // rotation matrix: [0.2873451776483652, 0.957253433933565, -0.03314531798953041; -0.6616346380781808, 0.1733475728411332, -0.729513690539967; -0.6925838249463989, 0.2315523314771105, 0.6831626184226783]
-    // distCoeffs.at<float>(1,0) = 0;   // tvec: [1.862240918769173; 0; 0.09360853660961244]
-    // distCoeffs.at<float>(2,0) = 0;
-    // distCoeffs.at<float>(3,0) = 0;
     distCoeffs.at<float>(0,0) = 0.14669700865145466;    // rvec: [0.8978477333458742; 0.09755148042756377; -0.6906326389118941]  // rotation matrix: [0.7818537877805597, 0.5904450913001934, -0.2001980236982824; -0.5118961116618573, 0.4246450498730385, -0.7467522698216565; -0.3559031123756337, 0.6863316805873317, 0.6342568870918992]
     distCoeffs.at<float>(1,0) = -0.2735315348568459;    // tvec: [0.5493038210961142; -0.637639893508527; 6.432556693713797]
     distCoeffs.at<float>(2,0) = 0.007300675413449662;
@@ -388,7 +427,11 @@ void stereoFrameTrack(StereoFrame &last_stereo_image,
     std::vector<cv::Point2f> img2_left_kp_pts = current_stereo_image.left_frame.keypoints_pts;
 
     std::vector<cv::Point3f> object_points(keypoints_3d_cv.begin(), keypoints_3d_cv.begin() + 4);
-    std::vector<cv::Point2f> image_points(img2_left_kp_pts.begin(), img2_left_kp_pts.begin() + 4);
+    // std::vector<cv::Point2f> image_points(img2_left_kp_pts.begin(), img2_left_kp_pts.begin() + 4);
+    std::vector<cv::Point2f> image_points;
+    for (int i = 0; i < 4; i++) {
+        image_points.push_back(img2_left_kp_pts[current_stereo_image.matching_landmarks_with_last_frame[i]->observations[current_stereo_image.id]]);
+    }
     // start time of solvePnP()
     const std::chrono::time_point<std::chrono::steady_clock> start_pnp = std::chrono::steady_clock::now();
     cv::solvePnP(object_points,
@@ -406,111 +449,87 @@ void stereoFrameTrack(StereoFrame &last_stereo_image,
     std::cout << "rotation matrix: " << rotationMatrix << std::endl;
     std::cout << "tvec: " << tvec << std::endl;
 
-    //**========== 5. OpenGV RANSAC ==========**//
-    // get bearing vectors, world points
-    opengv::bearingVectors_t bearing_vectors;
-    opengv::points_t W_points;
+    // //**========== 5. OpenGV RANSAC ==========**//
+    // // get bearing vectors, world points
+    // opengv::bearingVectors_t bearing_vectors;
+    // opengv::points_t W_points;
 
-    for (int i = 0; i < current_stereo_image.matching_landmarks_with_last_frame.size(); i++) {
-        const auto plandmark = current_stereo_image.matching_landmarks_with_last_frame[i];
-        cv::Point2f keypoint = img2_left_kp_pts[plandmark->observations[1]];
-        gtsam::Point3 versor;
-        versor[0] = keypoint.x / fx;
-        versor[1] = keypoint.y / fx;
-        versor[2] = 1;
-        bearing_vectors.push_back(versor.normalized());
-        W_points.push_back(plandmark->measurements[0]);
-    }
+    // for (int i = 0; i < current_stereo_image.matching_landmarks_with_last_frame.size(); i++) {
+    //     const auto plandmark = current_stereo_image.matching_landmarks_with_last_frame[i];
+    //     cv::Point2f keypoint = img2_left_kp_pts[plandmark->observations[1]];
+    //     gtsam::Point3 versor;
+    //     versor[0] = keypoint.x / fx;
+    //     versor[1] = keypoint.y / fx;
+    //     versor[2] = 1;
+    //     bearing_vectors.push_back(versor.normalized());
+    //     W_points.push_back(plandmark->measurements[0]);
+    // }
 
-    // create the central adapter
-    opengv::absolute_pose::CentralAbsoluteAdapter adapter(bearing_vectors, W_points);
-    // create a RANSAC object
-    opengv::sac::Ransac<opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem> ransac;
+    // // create the central adapter
+    // opengv::absolute_pose::CentralAbsoluteAdapter adapter(bearing_vectors, W_points);
+    // // create a RANSAC object
+    // opengv::sac::Ransac<opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem> ransac;
 
-    // create an AbsolutePoseSacProblem
-    std::shared_ptr<opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem>
-        absposeproblem_ptr(
-            new opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem(
-                adapter, opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem::EPNP ) );
+    // // create an AbsolutePoseSacProblem
+    // std::shared_ptr<opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem>
+    //     absposeproblem_ptr(
+    //         new opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem(
+    //             adapter, opengv::sac_problems::absolute_pose::AbsolutePoseSacProblem::EPNP ) );
 
-    // create a RANSAC threshold
-    double reprojection_error = 0.5;
-    const double threshold = 1.0 - std::cos(std::atan(std::sqrt(2.0) * reprojection_error / fx));
+    // // create a RANSAC threshold
+    // double reprojection_error = 0.5;
+    // const double threshold = 1.0 - std::cos(std::atan(std::sqrt(2.0) * reprojection_error / fx));
 
-    // run ransac
-    ransac.sac_model_ = absposeproblem_ptr;
-    ransac.threshold_ = threshold;
-    ransac.max_iterations_ = 300;
-    // start time of OpenGV RANSAC
-    const std::chrono::time_point<std::chrono::steady_clock> start_opengv_ransac = std::chrono::steady_clock::now();
-    ransac.computeModel();
-    // end time of OpenGV RANSAC
-    const std::chrono::time_point<std::chrono::steady_clock> end_opengv_ransac = std::chrono::steady_clock::now();
-    const std::chrono::duration<double> sec_opengv_ransac = end_opengv_ransac - start_opengv_ransac;
-    std::cout << "OpenGV RANSAC elapsed time: " << sec_opengv_ransac.count() << std::endl;  // 0.0271196
+    // // run ransac
+    // ransac.sac_model_ = absposeproblem_ptr;
+    // ransac.threshold_ = threshold;
+    // ransac.max_iterations_ = 300;
+    // // start time of OpenGV RANSAC
+    // const std::chrono::time_point<std::chrono::steady_clock> start_opengv_ransac = std::chrono::steady_clock::now();
+    // ransac.computeModel();
+    // // end time of OpenGV RANSAC
+    // const std::chrono::time_point<std::chrono::steady_clock> end_opengv_ransac = std::chrono::steady_clock::now();
+    // const std::chrono::duration<double> sec_opengv_ransac = end_opengv_ransac - start_opengv_ransac;
+    // std::cout << "OpenGV RANSAC elapsed time: " << sec_opengv_ransac.count() << std::endl;  // 0.0271196
 
-    // get the best pose
-    opengv::transformation_t best_pose = ransac.model_coefficients_;
-    Eigen::Isometry3d best_pose_eigen(best_pose);
+    // // get the best pose
+    // opengv::transformation_t best_pose = ransac.model_coefficients_;
+    // Eigen::Isometry3d best_pose_eigen(best_pose);
 
     //**========== 6. GTSAM optimize ==========**//
     // create a graph
     gtsam::NonlinearFactorGraph graph;
     // stereo camera calibration object
     gtsam::Cal3_S2Stereo::shared_ptr K(
-        new gtsam::Cal3_S2Stereo(fx, fy, 0, cx, cy, baseline));
+        new gtsam::Cal3_S2Stereo(current_stereo_image.fx,
+                                current_stereo_image.fy,
+                                current_stereo_image.s,
+                                current_stereo_image.cx,
+                                current_stereo_image.cy,
+                                current_stereo_image.baseline));
     last_stereo_image.K = K;
     current_stereo_image.K = K;
 
     // create initial values
     gtsam::Values initial_estimates;
 
-    // add factors
-    // prior factor
-    const auto priorNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1);
-    gtsam::Pose3 first_pose;
+    // 6-1. Add Factors and Values
+    // 6-1-1. prior factor
+    // const auto priorNoise = gtsam::noiseModel::Isotropic::Sigma(3, 1);
+    gtsam::Pose3 first_pose = last_stereo_image.pose;
     // constrain the first pose
     graph.emplace_shared<gtsam::NonlinearEquality<gtsam::Pose3> >(gtsam::Symbol('x', last_stereo_image.id), first_pose);
-    // stereo factors
-    const auto noiseModel = gtsam::noiseModel::Isotropic::Sigma(3, 1);
-    // pose1
+    // 6-1-2. stereo factors
+    // const auto noiseModel = gtsam::noiseModel::Isotropic::Sigma(3, 1);
+    const auto noiseModel = gtsam::noiseModel::Isotropic::Sigma(2, 1);
+    // 6-1-2-1. insert factors and values of last stereo frame
     insertFactorsAndValues(graph, initial_estimates, noiseModel, last_stereo_image);
-    // for (int i = 0; i < stereo_image1.landmarks.size(); i++) {
-    //     const auto plandmark = stereo_image1.landmarks[i];
-    //     cv::Point left_kp_pt = stereo_image1.left_frame.keypoints_pts[plandmark->observations[0]];
-    //     cv::Point right_kp_pt = stereo_image1.right_frame.keypoints_pts[i];
-    //     graph.emplace_shared<gtsam::GenericStereoFactor<gtsam::Pose3, gtsam::Point3>>(
-    //         gtsam::StereoPoint2(left_kp_pt.x, right_kp_pt.x, left_kp_pt.y),
-    //         noiseModel,
-    //         gtsam::Symbol('x', stereo_image1.id),
-    //         gtsam::Symbol('l', plandmark->id),
-    //         K);
-    //     // initial value of the landmark
-    //     if (!initial_estimates.exists(gtsam::Symbol('l', plandmark->id))) {
-    //         initial_estimates.insert(gtsam::Symbol('l', plandmark->id), plandmark->measurements[0]);
-    //     }
-    // }
-    // pose2
+    // 6-1-2-2. insert factors and values of current stereo frame
     insertFactorsAndValues(graph, initial_estimates, noiseModel, current_stereo_image);
-    // for (int j = 0; j < stereo_image2.landmarks.size(); j++) {
-    //     const auto plandmark = stereo_image2.landmarks[j];
-    //     cv::Point left_kp_pt = stereo_image2.left_frame.keypoints_pts[plandmark->observations[1]];
-    //     cv::Point right_kp_pt = stereo_image2.right_frame.keypoints_pts[j];
-    //     graph.emplace_shared<gtsam::GenericStereoFactor<gtsam::Pose3, gtsam::Point3>>(
-    //         gtsam::StereoPoint2(left_kp_pt.x, right_kp_pt.x, left_kp_pt.y),
-    //         noiseModel,
-    //         gtsam::Symbol('x', stereo_image2.id),
-    //         gtsam::Symbol('l', plandmark->id),
-    //         K);
-    //     // initial value of the landmark
-    //     if (!initial_estimates.exists(gtsam::Symbol('l', plandmark->id))) {
-    //         initial_estimates.insert(gtsam::Symbol('l', plandmark->id), plandmark->measurements[1]);
-    //     }
-    // }
 
-    // add initial pose estimates
+    // 6-1-3. add last pose estimate
     initial_estimates.insert(gtsam::Symbol('x', last_stereo_image.id), first_pose);
-    // initial_estimates.insert(gtsam::Symbol('x', stereo_image2.id), gtsam::Pose3(gtsam::Rot3(best_pose_eigen.rotation()), gtsam::Point3(best_pose_eigen.translation())));
+    // 6-1-4. add current pose estimate
     initial_estimates.insert(gtsam::Symbol('x', current_stereo_image.id), gtsam::Pose3());
 
     // optimize
@@ -521,12 +540,12 @@ void stereoFrameTrack(StereoFrame &last_stereo_image,
     // end time of GTSAM LM optimization
     const std::chrono::time_point<std::chrono::steady_clock> end_gtsam_opt = std::chrono::steady_clock::now();
     const std::chrono::duration<double> sec_gtsam_opt = end_gtsam_opt - start_gtsam_opt;
-    std::cout << "GTSAM Optimization elapsed time: " << sec_gtsam_opt.count() << std::endl;  // 0.251295
+    std::cout << "GTSAM Optimization elapsed time: " << sec_gtsam_opt.count() << std::endl;
 
     last_stereo_image.pose = result.at<gtsam::Pose3>(gtsam::Symbol('x', last_stereo_image.id));
     current_stereo_image.pose = result.at<gtsam::Pose3>(gtsam::Symbol('x', current_stereo_image.id));
-    // graph.print("graph print:\n");
-    // result.print("optimization result:\n");
+    graph.print("graph print:\n");
+    result.print("optimization result:\n");
 
     gtsam::Pose3 gtsam_pose = result.at<gtsam::Pose3>(gtsam::Symbol('x', current_stereo_image.id));
     Eigen::Isometry3d gtsam_pose_eigen;
@@ -678,7 +697,7 @@ void stereoFrameTriangulate(StereoFrame &stereo_image, const std::vector<int> &l
             plandmark->measurements = std::vector<gtsam::Point3>(stereo_image.id);
 
             plandmark->id = landmark_id;
-            plandmark->observations.push_back(stereo_image.keypoint_matches_R_L[i]);
+            plandmark->observations.push_back(i);  // left keypoint index
             plandmark->measurements.push_back(keypoint3d);
 
             stereo_image.landmarks.push_back(plandmark);
@@ -694,13 +713,15 @@ void insertFactorsAndValues(gtsam::NonlinearFactorGraph &graph,
                             gtsam::Values &initial_estimates,
                             const gtsam::noiseModel::Isotropic::shared_ptr& noiseModel,
                             const StereoFrame &stereo_image) {
-    for (int i = 0; i < stereo_image.landmarks.size(); i++) {
-        const auto plandmark = stereo_image.landmarks[i];
+    for (int i = 0; i < stereo_image.matching_landmarks_with_last_frame.size(); i++) {
+        const auto plandmark = stereo_image.matching_landmarks_with_last_frame[i];
         cv::Point left_kp_pt = stereo_image.left_frame.keypoints_pts[plandmark->observations[stereo_image.id]];
         cv::Point right_kp_pt = stereo_image.right_frame.keypoints_pts[i];
 
-        graph.emplace_shared<gtsam::GenericStereoFactor<gtsam::Pose3, gtsam::Point3>>(
-            gtsam::StereoPoint2(left_kp_pt.x, right_kp_pt.x, left_kp_pt.y),
+        // graph.emplace_shared<gtsam::GenericStereoFactor<gtsam::Pose3, gtsam::Point3>>(
+        graph.emplace_shared<gtsam::GenericProjectionFactor<gtsam::Pose3, gtsam::Point3>>(
+            gtsam::Point2(left_kp_pt.x, left_kp_pt.y),
+            // gtsam::StereoPoint2(left_kp_pt.x, right_kp_pt.x, left_kp_pt.y),
             noiseModel,
             gtsam::Symbol('x', stereo_image.id),
             gtsam::Symbol('l', plandmark->id),
@@ -894,13 +915,12 @@ void displayPosesWithKeyPoints(const std::vector<gtsam::Pose3> &poses, const std
         for (int i = 0; i < keypoints_3d_vec[0].size(); i++) {
             gtsam::Point3 point = keypoints_3d_vec[0][i];
 
-            glColor3f(1.0, 0.0, 0.0);  // red
+            glColor3f(0.0, 0.0, 0.0);  // black
             glVertex3d(point[0], point[1], point[2]);
         }
         glEnd();
 
         // draw transformed axis and object points
-        std::vector<std::vector<float>> colors {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}};
         Eigen::Vector3d last_center(0.0, 0.0, 0.0);
 
         int color_idx = 0;
@@ -945,6 +965,7 @@ void displayPosesWithKeyPoints(const std::vector<gtsam::Pose3> &poses, const std
             glEnd();
 
             color_idx++;
+            color_idx = color_idx % colors.size();
         }
 
         pangolin::FinishFrame();

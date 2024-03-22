@@ -4,6 +4,7 @@
 # cpp
 cpp/build/
 cpp/files/visual_odometry_example.csv
+cpp/images/vo_logs/*
 
 # python
 **/__pycache__
