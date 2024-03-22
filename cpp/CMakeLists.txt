@@ -1,6 +1,7 @@
 project(playground_cpp)
 
 cmake_minimum_required(VERSION 3.16)
+set(CMAKE_CXX_FLAGS "-std=c++17")
 set(CMAKE_BUILD_TYPE Debug)
 
 ##=========================DEPENDENCIES=========================##
@@ -30,6 +31,7 @@ add_executable(basic_file basic_file.cpp)
 add_executable(basic_nothing basic_nothing.cpp)
 add_executable(basic_unordered_map basic_unordered_map.cpp)
 add_executable(chrono_measure_time chrono_measure_time.cpp)
+add_executable(basic_filesystem basic_filesystem.cpp)
 # eigen
 add_executable(eigen_transform eigen_transform.cpp)
 add_executable(eigen_basic eigen_basic.cpp)
