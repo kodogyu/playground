@@ -7,7 +7,7 @@ set(CMAKE_BUILD_TYPE Debug)
 ##=========================DEPENDENCIES=========================##
 find_package(Eigen3 REQUIRED)
 find_package(GTSAM REQUIRED)
-find_package(OpenCV REQUIRED)   # -DOpenCV_DIR=/home/kodogyu/opencv/build
+find_package(OpenCV 4 REQUIRED)   # -DOpenCV_DIR=/home/kodogyu/opencv/build
 find_package(Sophus REQUIRED)
 # find_package(cv_bridge REQUIRED)
 find_package(Pangolin 0.8 REQUIRED)
@@ -32,6 +32,8 @@ add_executable(basic_nothing basic_nothing.cpp)
 add_executable(basic_unordered_map basic_unordered_map.cpp)
 add_executable(chrono_measure_time chrono_measure_time.cpp)
 add_executable(basic_filesystem basic_filesystem.cpp)
+add_executable(basic_vector basic_vector.cpp)
+add_executable(basic_map basic_map.cpp)
 # eigen
 add_executable(eigen_transform eigen_transform.cpp)
 add_executable(eigen_basic eigen_basic.cpp)
@@ -99,3 +101,6 @@ target_link_libraries(get_right_image ${OpenCV_LIBS})
 
 add_executable(visual_odometry_example visual_odometry_example.cpp)
 target_link_libraries(visual_odometry_example ${OpenCV_LIBS} ${Pangolin_LIBRARIES} gtsam opengv)
+
+add_executable(vo_patch vo_patch.cpp)
+target_link_libraries(vo_patch ${OpenCV_LIBS} ${Pangolin_LIBRARIES})

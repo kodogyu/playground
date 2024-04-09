@@ -1,0 +1,66 @@
+%YAML:1.0
+
+#========== Dataset ==========#
+num_frames: 10
+
+# # KITTI-360
+# is_kitti: 0
+# # perspective image
+# left_images_dir: /home/kodogyu/Datasets/KITTI-360/data_2d_raw/2013_05_28_drive_0000_sync/image_00/data_rect
+# right_images_dir: /home/kodogyu/Datasets/KITTI-360/data_2d_raw/2013_05_28_drive_0000_sync/image_01/data_rect
+
+# # fisheye image
+# left_images_dir: /home/kodogyu/Datasets/KITTI-360/data_2d_raw/2013_05_28_drive_0000_sync/image_02/data_rgb
+# right_images_dir: /home/kodogyu/Datasets/KITTI-360/data_2d_raw/2013_05_28_drive_0000_sync/image_03/data_rgb
+
+# KITTI
+is_kitti: 1
+left_images_dir: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0
+right_images_dir: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_1
+
+
+#========== Camera parameters ==========#
+# # KITTI-360
+# fx: 788.629315
+# fy: 786.382230
+# s: 0.0
+# cx: 687.158398
+# cy: 317.752196
+
+# KITTI
+fx: 718.856
+fy: 718.856
+s: 0.0
+cx: 607.1928
+cy: 185.2157
+
+#========== Visualize ==========#
+display_gt: 1
+# display_type
+#   0: pose only
+#   1: pose & landmarks
+display_type: 0
+
+# # KITTI-360
+# gt_path: /home/kodogyu/Datasets/KITTI-360/data_poses/2013_05_28_drive_0000_sync/cam0_to_world.txt
+
+# KITTI
+gt_path: /home/kodogyu/Datasets/KITTI/dataset/poses/00.txt
+
+#========== Feature extraction ==========#
+num_features: 3000
+
+#========== Feature matching ==========#
+des_dist_thresh: 0.5
+
+
+#========== Optimization ==========#
+do_optimize: 0
+window_size: 2
+optimizer_verbose: 0
+
+#========== VO patch ==========#
+prev_frame: vo_patch/source_frames/000002.png
+curr_frame: vo_patch/source_frames/000003.png
+
+num_top_matches: 94

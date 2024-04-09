@@ -5,6 +5,8 @@
 cpp/build/
 cpp/files/visual_odometry_example.csv
 cpp/images/vo_logs/*
+cpp/vo_patch/inter_frames/*
+cpp/vo_patch/source_frames/*
 
 # python
 **/__pycache__
