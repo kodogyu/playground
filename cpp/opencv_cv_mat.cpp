@@ -21,5 +21,14 @@ int main() {
     cout << color_image.cols << endl;
     cout << color_image.dims << endl;
 
+    // cv::Mat empty?
+    cv::Mat empty_mat;
+    cout << "is empty?: " << empty_mat.empty() << endl;
+
+    // cout
+    cv::Mat mat1 = (cv::Mat_<int>(2, 2) << 1, 2, 3, 4);
+    cout <<"mat1:" << endl;
+    cout << mat1 << endl;
+
     return 0;
 }
