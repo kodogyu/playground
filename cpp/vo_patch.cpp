@@ -295,27 +295,27 @@ int main(int argc, char** argv) {
     orb_matcher->knnMatch(prev_image_descriptors, curr_image_descriptors, image_matches01_vec, 2);  // prev -> curr matches
     orb_matcher->knnMatch(curr_image_descriptors, prev_image_descriptors, image_matches10_vec, 2);  // curr -> prev matches
 
-    // top matches
-    std::vector<cv::DMatch> matches;
-    orb_matcher->match(prev_image_descriptors, curr_image_descriptors, matches);
-    std::sort(matches.begin(), matches.end());
-    std::vector<cv::DMatch> top_matches(matches.begin(), matches.begin() + int(config_file["num_top_matches"]));
+    // // top matches
+    // std::vector<cv::DMatch> matches;
+    // orb_matcher->match(prev_image_descriptors, curr_image_descriptors, matches);
+    // std::sort(matches.begin(), matches.end());
+    // std::vector<cv::DMatch> top_matches(matches.begin(), matches.begin() + int(config_file["num_top_matches"]));
 
-    // // good matches
-    // std::vector<cv::DMatch> good_matches;
-    // for (int i = 0; i < image_matches01_vec.size(); i++) {
-    //     if (image_matches01_vec[i][0].distance < image_matches01_vec[i][1].distance * des_dist_thresh) {  // prev -> curr match에서 좋은가?
-    //         int image1_keypoint_idx = image_matches01_vec[i][0].trainIdx;
-    //         if (image_matches10_vec[image1_keypoint_idx][0].distance < image_matches10_vec[image1_keypoint_idx][1].distance * des_dist_thresh) {  // curr -> prev match에서 좋은가?
-    //             if (image_matches01_vec[i][0].queryIdx == image_matches10_vec[image1_keypoint_idx][0].trainIdx)
-    //                 good_matches.push_back(image_matches01_vec[i][0]);
-    //         }
-    //     }
-    // }
+    // good matches
+    std::vector<cv::DMatch> good_matches;
+    for (int i = 0; i < image_matches01_vec.size(); i++) {
+        if (image_matches01_vec[i][0].distance < image_matches01_vec[i][1].distance * des_dist_thresh) {  // prev -> curr match에서 좋은가?
+            int image1_keypoint_idx = image_matches01_vec[i][0].trainIdx;
+            if (image_matches10_vec[image1_keypoint_idx][0].distance < image_matches10_vec[image1_keypoint_idx][1].distance * des_dist_thresh) {  // curr -> prev match에서 좋은가?
+                if (image_matches01_vec[i][0].queryIdx == image_matches10_vec[image1_keypoint_idx][0].trainIdx)
+                    good_matches.push_back(image_matches01_vec[i][0]);
+            }
+        }
+    }
 
     std::cout << "original features for image" + std::to_string(p_id) + "&" + std::to_string(c_id) + ": " << image_matches01_vec.size() << std::endl;
-    // std::cout << "good features for image" + std::to_string(p_id) + "&" + std::to_string(c_id) + ": " << good_matches.size() << std::endl;
-    std::cout << "top matches for image" + std::to_string(p_id) + "&" + std::to_string(c_id) + ": " << top_matches.size() << std::endl;
+    std::cout << "good features for image" + std::to_string(p_id) + "&" + std::to_string(c_id) + ": " << good_matches.size() << std::endl;
+    // std::cout << "top matches for image" + std::to_string(p_id) + "&" + std::to_string(c_id) + ": " << top_matches.size() << std::endl;
 
     // cv::Mat image_matches;
     // cv::drawMatches(prev_image, prev_image_keypoints, curr_image, curr_image_keypoints, good_matches, image_matches, cv::Scalar::all(-1), cv::Scalar::all(-1), cv::Mat(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
@@ -332,33 +332,35 @@ int main(int argc, char** argv) {
     std::vector<cv::Point2f> image1_kp_pts;
     std::vector<cv::Point2f> top_image0_kp_pts;
     std::vector<cv::Point2f> top_image1_kp_pts;
-    // for (auto match : good_matches) {
-    //     image0_kp_pts.push_back(prev_image_keypoints[match.queryIdx].pt);
-    //     image1_kp_pts.push_back(curr_image_keypoints[match.trainIdx].pt);
-    //     image0_kps.push_back(prev_image_keypoints[match.queryIdx]);
-    //     image1_kps.push_back(curr_image_keypoints[match.trainIdx]);
-    // }
-    for (auto match : top_matches) {
-        top_image0_kp_pts.push_back(prev_image_keypoints[match.queryIdx].pt);
-        top_image1_kp_pts.push_back(curr_image_keypoints[match.trainIdx].pt);
+    for (auto match : good_matches) {
+        image0_kp_pts.push_back(prev_image_keypoints[match.queryIdx].pt);
+        image1_kp_pts.push_back(curr_image_keypoints[match.trainIdx].pt);
+        image0_kps.push_back(prev_image_keypoints[match.queryIdx]);
+        image1_kps.push_back(curr_image_keypoints[match.trainIdx]);
     }
+    // for (auto match : top_matches) {
+    //     top_image0_kp_pts.push_back(prev_image_keypoints[match.queryIdx].pt);
+    //     top_image1_kp_pts.push_back(curr_image_keypoints[match.trainIdx].pt);
+    // }
 
     cv::Mat mask;
-    cv::Mat essential_mat = cv::findEssentialMat(top_image1_kp_pts, top_image0_kp_pts, intrinsic, cv::RANSAC, 0.999, 1.0, mask);
-    // cv::Mat essential_mat = cv::findEssentialMat(image1_kp_pts, image0_kp_pts, intrinsic, cv::RANSAC, 0.999, 1.0, mask);
+    // cv::Mat essential_mat = cv::findEssentialMat(top_image1_kp_pts, top_image0_kp_pts, intrinsic, cv::RANSAC, 0.999, 1.0, mask);
+    cv::Mat essential_mat = cv::findEssentialMat(image1_kp_pts, image0_kp_pts, intrinsic, cv::RANSAC, 0.999, 1.0, mask);
     cv::Mat ransac_matches;
-    cv::drawMatches(prev_image, prev_image_keypoints,
-                    curr_image, curr_image_keypoints,
-                    top_matches, ransac_matches, cv::Scalar::all(-1), cv::Scalar::all(-1), mask, cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
     // cv::drawMatches(prev_image, prev_image_keypoints,
     //                 curr_image, curr_image_keypoints,
-    //                 good_matches, ransac_matches, cv::Scalar::all(-1), cv::Scalar::all(-1), mask, cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+    //                 top_matches, ransac_matches, cv::Scalar::all(-1), cv::Scalar::all(-1), mask, cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+    cv::drawMatches(prev_image, prev_image_keypoints,
+                    curr_image, curr_image_keypoints,
+                    good_matches, ransac_matches, cv::Scalar::all(-1), cv::Scalar::all(-1), mask, cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
     cv::putText(ransac_matches, "(vo_patch)frame" + std::to_string(p_id) + " & frame" + std::to_string(c_id),
                                 cv::Point(0, 20), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
     cv::putText(ransac_matches, "dist_thresh: " + std::to_string(des_dist_thresh),
                                 cv::Point(0, 40), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
-    cv::putText(ransac_matches, "num_matches: " + std::to_string(top_matches.size()),
+    cv::putText(ransac_matches, "num_matches: " + std::to_string(good_matches.size()),
                                 cv::Point(0, 60), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
+    // cv::putText(ransac_matches, "num_matches: " + std::to_string(top_matches.size()),
+    //                             cv::Point(0, 60), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
     cv::imwrite("vo_patch/inter_frames/(vo_patch)frame"
             + std::to_string(p_id)
             + "&"
@@ -367,8 +369,8 @@ int main(int argc, char** argv) {
 
     //**========== 3. Motion estimation ==========**//
     cv::Mat R, t;
-    cv::recoverPose(essential_mat, top_image1_kp_pts, top_image0_kp_pts, intrinsic, R, t, mask);
-    // cv::recoverPose(essential_mat, image1_kp_pts, image0_kp_pts, intrinsic, R, t, mask);
+    // cv::recoverPose(essential_mat, top_image1_kp_pts, top_image0_kp_pts, intrinsic, R, t, mask);
+    cv::recoverPose(essential_mat, image1_kp_pts, image0_kp_pts, intrinsic, R, t, mask);
 
     Eigen::Matrix3d rotation_mat;
     Eigen::Vector3d translation_mat;
@@ -380,10 +382,12 @@ int main(int argc, char** argv) {
 
     //**========== 4. Triangulation ==========**//
     std::vector<Eigen::Vector3d> landmarks;
-    triangulate2(intrinsic, top_image0_kp_pts, top_image1_kp_pts, relative_pose, landmarks);
+    triangulate2(intrinsic, image0_kp_pts, image1_kp_pts, relative_pose, landmarks);
+    // triangulate2(intrinsic, top_image0_kp_pts, top_image1_kp_pts, relative_pose, landmarks);
 
     // calculate reprojection error
-    double reproj_error = calcReprojectionError(intrinsic, prev_image, top_image0_kp_pts, curr_image, top_image1_kp_pts, mask, relative_pose, landmarks);
+    double reproj_error = calcReprojectionError(intrinsic, prev_image, image0_kp_pts, curr_image, image1_kp_pts, mask, relative_pose, landmarks);
+    // double reproj_error = calcReprojectionError(intrinsic, prev_image, top_image0_kp_pts, curr_image, top_image1_kp_pts, mask, relative_pose, landmarks);
     std::cout << "reprojection error: " << reproj_error << std::endl;
 
 
@@ -547,8 +551,8 @@ void displayPoses(const std::vector<Eigen::Isometry3d> &gt_poses, const std::vec
 
         // draw gt
         drawGT(gt_poses);
-        // draw aligned poses
-        drawPoses(aligned_poses);
+        // // draw aligned poses
+        // drawPoses(aligned_poses);
 
         pangolin::FinishFrame();
     }
