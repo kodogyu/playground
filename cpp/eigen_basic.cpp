@@ -17,9 +17,14 @@ int main() {
                             4, 5, 6,
                             7, 8, 9;
     translation_eigen << 11, 12, 13;
-    pose.matrix().block<3, 3>(0, 0) = rotationMatrix_eigen;
-    pose.matrix().block<3, 1>(0, 3) = translation_eigen;
+    // pose.matrix().block<3, 3>(0, 0) = rotationMatrix_eigen;
+    // pose.matrix().block<3, 1>(0, 3) = translation_eigen;
+    pose.translation() = translation_eigen;
 
     std::cout << "pose: \n" << pose.matrix() << std::endl;
+
+    Eigen::MatrixXd proj_mat = Eigen::MatrixXd::Identity(3, 4);
+    std::cout << "proj_mat: \n" << proj_mat << std::endl;
+
     return 0;
 }
