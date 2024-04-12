@@ -8,6 +8,7 @@ cpp/images/vo_logs/*
 cpp/vo_patch/inter_frames/*
 cpp/vo_patch/source_frames/*
 cpp/vo_patch/reprojected_landmarks/*
+cpp/vo_patch/intra_frames/*
 
 # python
 **/__pycache__

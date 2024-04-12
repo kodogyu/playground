@@ -49,9 +49,12 @@ void triangulate2(cv::Mat intrinsic, std::vector<cv::Point2f> img0_kp_pts, std::
 }
 
 double calcReprojectionError(cv::Mat &intrinsic,
+                            int p_id,
                             cv::Mat image0, std::vector<cv::Point2f> img0_kp_pts,
+                            int c_id,
                             cv::Mat image1, std::vector<cv::Point2f> img1_kp_pts, cv::Mat mask,
-                            Eigen::Isometry3d &cam1_pose, std::vector<Eigen::Vector3d> &landmarks) {
+                            Eigen::Isometry3d &cam1_pose, std::vector<Eigen::Vector3d> &landmarks,
+                            int num_matches) {
     double reproj_error0 = 0, reproj_error1 = 0;
     double inlier_reproj_error0 = 0, inlier_reproj_error1 = 0;
     int inlier_cnt = 0;
@@ -128,27 +131,69 @@ double calcReprojectionError(cv::Mat &intrinsic,
                     projected_point1,
                     mask.at<unsigned char>(i) == 1 ? cv::Scalar(0, 0, 255) : cv::Scalar(255, 0, 0));  // red, (blue)
     }
-    cv::putText(image0_copy, "prev_frame",
+    cv::putText(image0_copy, "frame" + std::to_string(p_id),
                                     cv::Point(0, 20), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
     cv::putText(image0_copy, "#landmarks: " + std::to_string(landmarks.size()),
                                     cv::Point(0, 40), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
     cv::putText(image0_copy, "#inliers: " + std::to_string(inlier_cnt),
                                     cv::Point(0, 60), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
-    cv::putText(image1_copy, "curr_frame",
+    cv::putText(image1_copy, "frame" + std::to_string(c_id),
                                     cv::Point(0, 20), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
     cv::putText(image1_copy, "#landmarks: " + std::to_string(landmarks.size()),
                                     cv::Point(0, 40), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
     cv::putText(image1_copy, "#inliers: " + std::to_string(inlier_cnt),
                                     cv::Point(0, 60), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
 
-    cv::imwrite("vo_patch/reprojected_landmarks/prev_frame_proj.png", image0_copy);
-    cv::imwrite("vo_patch/reprojected_landmarks/curr_frame_proj.png", image1_copy);
+    cv::imwrite("vo_patch/reprojected_landmarks/frame" + std::to_string(p_id) + "_" + std::to_string(num_matches) + "_proj.png", image0_copy);
+    cv::imwrite("vo_patch/reprojected_landmarks/frame" + std::to_string(c_id) + "_" + std::to_string(num_matches) + "_proj.png", image1_copy);
 
     std::cout << "RANSAC inliers: " << inlier_cnt << std::endl;
     std::cout << "inlier reprojected error: " << ((inlier_reproj_error0 + inlier_reproj_error1) / inlier_cnt) / 2 << std::endl;
 
     double reprojection_error = ((reproj_error0 + reproj_error1) / landmarks.size()) / 2;
     return reprojection_error;
+}
+
+void drawKeypoints(int p_id,
+                    cv::Mat image0, std::vector<cv::Point2f> img0_kp_pts,
+                    int c_id,
+                    cv::Mat image1, std::vector<cv::Point2f> img1_kp_pts,
+                    int num_features
+                    ) {
+    cv::Mat image0_copy, image1_copy;
+    cv::cvtColor(image0, image0_copy, cv::COLOR_GRAY2BGR);
+    cv::cvtColor(image1, image1_copy, cv::COLOR_GRAY2BGR);
+
+    for (int i = 0; i < img0_kp_pts.size(); i++) {
+        // draw images
+        cv::rectangle(image0_copy,
+                    img0_kp_pts[i] - cv::Point2f(5, 5),
+                    img0_kp_pts[i] + cv::Point2f(5, 5),
+                    cv::Scalar(0, 255, 0));  // green, (yellow)
+        cv::circle(image0_copy,
+                    img0_kp_pts[i],
+                    1,
+                    cv::Scalar(0, 0, 255));  // red, (blue)
+        cv::rectangle(image1_copy,
+                    img1_kp_pts[i] - cv::Point2f(5, 5),
+                    img1_kp_pts[i] + cv::Point2f(5, 5),
+                    cv::Scalar(0, 255, 0));  // green, (yellow)
+        cv::circle(image1_copy,
+                    img1_kp_pts[i],
+                    1,
+                    cv::Scalar(0, 0, 255));  // red, (blue)
+    }
+    cv::putText(image0_copy, "frame" + std::to_string(p_id),
+                                    cv::Point(0, 20), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
+    cv::putText(image0_copy, "#features: " + std::to_string(num_features),
+                                    cv::Point(0, 40), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
+    cv::putText(image1_copy, "frame" + std::to_string(c_id),
+                                    cv::Point(0, 20), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
+    cv::putText(image1_copy, "#features: " + std::to_string(num_features),
+                                    cv::Point(0, 40), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
+
+    cv::imwrite("vo_patch/intra_frames/frame" + std::to_string(p_id) + "_" + std::to_string(num_features) + "_kps.png", image0_copy);
+    cv::imwrite("vo_patch/intra_frames/frame" + std::to_string(c_id) + "_" + std::to_string(num_features) + "_kps.png", image1_copy);
 }
 
 void loadGT(std::string gt_path, int prev_frame_id, std::vector<Eigen::Isometry3d> &gt_poses) {
@@ -253,6 +298,8 @@ int main(int argc, char** argv) {
                                                     0, 0, 1);
     cv::Ptr<cv::ORB> orb = cv::ORB::create(config_file["num_features"], 1.2, 8, 31, 0, 2, cv::ORB::HARRIS_SCORE, 31, 25);
 
+    int num_matches = config_file["num_matches"];
+
     std::vector<cv::Mat> keypoints_3d_vec;
     Eigen::Isometry3d relative_pose;
     std::vector<Eigen::Isometry3d> poses;
@@ -295,12 +342,6 @@ int main(int argc, char** argv) {
     orb_matcher->knnMatch(prev_image_descriptors, curr_image_descriptors, image_matches01_vec, 2);  // prev -> curr matches
     orb_matcher->knnMatch(curr_image_descriptors, prev_image_descriptors, image_matches10_vec, 2);  // curr -> prev matches
 
-    // // top matches
-    // std::vector<cv::DMatch> matches;
-    // orb_matcher->match(prev_image_descriptors, curr_image_descriptors, matches);
-    // std::sort(matches.begin(), matches.end());
-    // std::vector<cv::DMatch> top_matches(matches.begin(), matches.begin() + int(config_file["num_top_matches"]));
-
     // good matches
     std::vector<cv::DMatch> good_matches;
     for (int i = 0; i < image_matches01_vec.size(); i++) {
@@ -312,10 +353,13 @@ int main(int argc, char** argv) {
             }
         }
     }
+    if (num_matches > -1) {
+        std::sort(good_matches.begin(), good_matches.end());
+        good_matches.resize(num_matches);
+    }
 
     std::cout << "original features for image" + std::to_string(p_id) + "&" + std::to_string(c_id) + ": " << image_matches01_vec.size() << std::endl;
     std::cout << "good features for image" + std::to_string(p_id) + "&" + std::to_string(c_id) + ": " << good_matches.size() << std::endl;
-    // std::cout << "top matches for image" + std::to_string(p_id) + "&" + std::to_string(c_id) + ": " << top_matches.size() << std::endl;
 
     // cv::Mat image_matches;
     // cv::drawMatches(prev_image, prev_image_keypoints, curr_image, curr_image_keypoints, good_matches, image_matches, cv::Scalar::all(-1), cv::Scalar::all(-1), cv::Mat(), cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
@@ -330,26 +374,21 @@ int main(int argc, char** argv) {
     std::vector<cv::KeyPoint> image1_kps;
     std::vector<cv::Point2f> image0_kp_pts;
     std::vector<cv::Point2f> image1_kp_pts;
-    std::vector<cv::Point2f> top_image0_kp_pts;
-    std::vector<cv::Point2f> top_image1_kp_pts;
     for (auto match : good_matches) {
         image0_kp_pts.push_back(prev_image_keypoints[match.queryIdx].pt);
         image1_kp_pts.push_back(curr_image_keypoints[match.trainIdx].pt);
         image0_kps.push_back(prev_image_keypoints[match.queryIdx]);
         image1_kps.push_back(curr_image_keypoints[match.trainIdx]);
     }
-    // for (auto match : top_matches) {
-    //     top_image0_kp_pts.push_back(prev_image_keypoints[match.queryIdx].pt);
-    //     top_image1_kp_pts.push_back(curr_image_keypoints[match.trainIdx].pt);
-    // }
+
+    // draw keypoints
+    drawKeypoints(p_id, prev_image, image0_kp_pts, c_id, curr_image, image1_kp_pts, num_matches);
 
     cv::Mat mask;
-    // cv::Mat essential_mat = cv::findEssentialMat(top_image1_kp_pts, top_image0_kp_pts, intrinsic, cv::RANSAC, 0.999, 1.0, mask);
     cv::Mat essential_mat = cv::findEssentialMat(image1_kp_pts, image0_kp_pts, intrinsic, cv::RANSAC, 0.999, 1.0, mask);
     cv::Mat ransac_matches;
-    // cv::drawMatches(prev_image, prev_image_keypoints,
-    //                 curr_image, curr_image_keypoints,
-    //                 top_matches, ransac_matches, cv::Scalar::all(-1), cv::Scalar::all(-1), mask, cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
+
+    // draw matches
     cv::drawMatches(prev_image, prev_image_keypoints,
                     curr_image, curr_image_keypoints,
                     good_matches, ransac_matches, cv::Scalar::all(-1), cv::Scalar::all(-1), mask, cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
@@ -359,8 +398,6 @@ int main(int argc, char** argv) {
                                 cv::Point(0, 40), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
     cv::putText(ransac_matches, "num_matches: " + std::to_string(good_matches.size()),
                                 cv::Point(0, 60), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
-    // cv::putText(ransac_matches, "num_matches: " + std::to_string(top_matches.size()),
-    //                             cv::Point(0, 60), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
     cv::imwrite("vo_patch/inter_frames/(vo_patch)frame"
             + std::to_string(p_id)
             + "&"
@@ -369,7 +406,6 @@ int main(int argc, char** argv) {
 
     //**========== 3. Motion estimation ==========**//
     cv::Mat R, t;
-    // cv::recoverPose(essential_mat, top_image1_kp_pts, top_image0_kp_pts, intrinsic, R, t, mask);
     cv::recoverPose(essential_mat, image1_kp_pts, image0_kp_pts, intrinsic, R, t, mask);
 
     Eigen::Matrix3d rotation_mat;
@@ -383,11 +419,9 @@ int main(int argc, char** argv) {
     //**========== 4. Triangulation ==========**//
     std::vector<Eigen::Vector3d> landmarks;
     triangulate2(intrinsic, image0_kp_pts, image1_kp_pts, relative_pose, landmarks);
-    // triangulate2(intrinsic, top_image0_kp_pts, top_image1_kp_pts, relative_pose, landmarks);
 
-    // calculate reprojection error
-    double reproj_error = calcReprojectionError(intrinsic, prev_image, image0_kp_pts, curr_image, image1_kp_pts, mask, relative_pose, landmarks);
-    // double reproj_error = calcReprojectionError(intrinsic, prev_image, top_image0_kp_pts, curr_image, top_image1_kp_pts, mask, relative_pose, landmarks);
+    // calculate reprojection error & save the images
+    double reproj_error = calcReprojectionError(intrinsic, p_id, prev_image, image0_kp_pts, c_id, curr_image, image1_kp_pts, mask, relative_pose, landmarks, num_matches);
     std::cout << "reprojection error: " << reproj_error << std::endl;
 
 
@@ -551,9 +585,10 @@ void displayPoses(const std::vector<Eigen::Isometry3d> &gt_poses, const std::vec
 
         // draw gt
         drawGT(gt_poses);
-        // // draw aligned poses
-        // drawPoses(aligned_poses);
+        // draw aligned poses
+        drawPoses(aligned_poses);
 
         pangolin::FinishFrame();
     }
 }
+

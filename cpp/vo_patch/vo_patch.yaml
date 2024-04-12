@@ -60,7 +60,9 @@ window_size: 2
 optimizer_verbose: 0
 
 #========== VO patch ==========#
-prev_frame: vo_patch/source_frames/000000.png
-curr_frame: vo_patch/source_frames/000001.png
+prev_frame: vo_patch/source_frames/000003.png
+curr_frame: vo_patch/source_frames/000004.png
 
-num_top_matches: 10
+# num_matches:
+#   -1 : all matches
+num_matches: 15
