@@ -59,8 +59,19 @@ double calcReprojectionError(cv::Mat &intrinsic,
     double inlier_reproj_error0 = 0, inlier_reproj_error1 = 0;
     int inlier_cnt = 0;
     cv::Mat image0_copy, image1_copy;
-    cv::cvtColor(image0, image0_copy, cv::COLOR_GRAY2BGR);
-    cv::cvtColor(image1, image1_copy, cv::COLOR_GRAY2BGR);
+
+    if (image0.type() == CV_8UC1) {
+        cv::cvtColor(image0, image0_copy, cv::COLOR_GRAY2BGR);
+    }
+    else {
+        image0.copyTo(image0_copy);
+    }
+    if (image1.type() == CV_8UC1) {
+        cv::cvtColor(image1, image1_copy, cv::COLOR_GRAY2BGR);
+    }
+    else {
+        image1.copyTo(image1_copy);
+    }
 
     Eigen::Matrix3d camera_intrinsic;
     cv::cv2eigen(intrinsic, camera_intrinsic);
@@ -161,8 +172,19 @@ void drawKeypoints(int p_id,
                     int num_features
                     ) {
     cv::Mat image0_copy, image1_copy;
-    cv::cvtColor(image0, image0_copy, cv::COLOR_GRAY2BGR);
-    cv::cvtColor(image1, image1_copy, cv::COLOR_GRAY2BGR);
+
+    if (image0.type() == CV_8UC1) {
+        cv::cvtColor(image0, image0_copy, cv::COLOR_GRAY2BGR);
+    }
+    else {
+        image0.copyTo(image0_copy);
+    }
+    if (image1.type() == CV_8UC1) {
+        cv::cvtColor(image1, image1_copy, cv::COLOR_GRAY2BGR);
+    }
+    else {
+        image1.copyTo(image1_copy);
+    }
 
     for (int i = 0; i < img0_kp_pts.size(); i++) {
         // draw images
@@ -194,6 +216,40 @@ void drawKeypoints(int p_id,
 
     cv::imwrite("vo_patch/intra_frames/frame" + std::to_string(p_id) + "_" + std::to_string(num_features) + "_kps.png", image0_copy);
     cv::imwrite("vo_patch/intra_frames/frame" + std::to_string(c_id) + "_" + std::to_string(num_features) + "_kps.png", image1_copy);
+}
+
+void drawKeypointsSingleImage(int id,
+                    cv::Mat image, std::vector<cv::KeyPoint> img_kps,
+                    std::string folder,
+                    std::string tail
+                    ) {
+    cv::Mat image_copy;
+
+    if (image.type() == CV_8UC1) {
+        cv::cvtColor(image, image_copy, cv::COLOR_GRAY2BGR);
+    }
+    else {
+        image.copyTo(image_copy);
+    }
+
+    for (int i = 0; i < img_kps.size(); i++) {
+        cv::Point2f img_kp_pt = img_kps[i].pt;
+        // draw images
+        cv::rectangle(image_copy,
+                    img_kp_pt - cv::Point2f(5, 5),
+                    img_kp_pt + cv::Point2f(5, 5),
+                    cv::Scalar(0, 255, 0));  // green, (yellow)
+        cv::circle(image_copy,
+                    img_kp_pt,
+                    1,
+                    cv::Scalar(0, 0, 255));  // red, (blue)
+    }
+    cv::putText(image_copy, "frame" + std::to_string(id),
+                                    cv::Point(0, 20), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
+    cv::putText(image_copy, "#features: " + std::to_string(img_kps.size()),
+                                    cv::Point(0, 40), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
+
+    cv::imwrite(folder + "/frame" + std::to_string(id) + "_kps" + tail + ".png", image_copy);
 }
 
 void loadGT(std::string gt_path, int prev_frame_id, std::vector<Eigen::Isometry3d> &gt_poses) {
@@ -284,6 +340,63 @@ void calcRPE_rt(const std::vector<Eigen::Isometry3d> &gt_poses, const Eigen::Iso
     rpe_trans = sqrt(acc_trans_error / double(rpe_vec.size()));
 }
 
+void filterKeypoints(const cv::Size image_size, const cv::Size patch_size, int kps_per_patch, std::vector<cv::KeyPoint> &img_kps, cv::Mat &img_descriptor) {
+
+    int row_iter = (image_size.height - 1) / patch_size.height;
+    int col_iter = (image_size.width - 1) / patch_size.width;
+
+    std::vector<std::vector<int>> bins(row_iter + 1, std::vector<int>(col_iter + 1));
+    std::cout << "bin size: (" << bins.size() << ", " << bins[0].size() << ")" << std::endl;
+
+    std::vector<cv::KeyPoint> filtered_kps;
+    cv::Mat filtered_descriptors;
+    std::vector<cv::Mat> filtered_descriptors_vec;
+
+    for (int i = 0; i < img_kps.size(); i++) {
+        cv::Point2f kp_pt = img_kps[i].pt;
+
+        int bin_cnt = bins[kp_pt.y / patch_size.height][kp_pt.x / patch_size.width];
+        if (bin_cnt < kps_per_patch) {
+            filtered_kps.push_back(img_kps[i]);
+            filtered_descriptors_vec.push_back(img_descriptor.row(i));
+
+            bins[kp_pt.y / patch_size.height][kp_pt.x / patch_size.width]++;
+        }
+    }
+
+    for (auto desc : filtered_descriptors_vec) {
+        filtered_descriptors.push_back(desc);
+    }
+
+    img_kps = filtered_kps;
+    img_descriptor = filtered_descriptors;
+}
+
+void drawGrid(cv::Mat &image, const cv::Size patch_size, int kps_per_patch) {
+    cv::cvtColor(image, image, cv::COLOR_GRAY2BGR);
+
+    int row_iter = (image.rows) / patch_size.height;
+    int col_iter = (image.cols) / patch_size.width;
+
+    // 가로선
+    for (int i = 0; i < row_iter; i++) {
+        int row = (i + 1) * patch_size.height;
+        cv::line(image, cv::Point2f(0, row), cv::Point2f(image.cols, row), cv::Scalar(0, 0, 0), 2);
+    }
+    // 세로선
+    for (int j = 0; j < col_iter; j++) {
+        int col = (j + 1) * patch_size.width;
+        cv::line(image, cv::Point2f(col, 0), cv::Point2f(col, image.rows), cv::Scalar(0, 0, 0), 2);
+    }
+
+    cv::putText(image, "patch width: " + std::to_string(patch_size.width),
+                                    cv::Point(image.cols - 200, 20), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
+    cv::putText(image, "patch height: " + std::to_string(patch_size.height),
+                                    cv::Point(image.cols - 200, 40), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
+    cv::putText(image, "keypoints / patch: " + std::to_string(kps_per_patch),
+                                    cv::Point(image.cols - 250, 60), cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0, 255, 0));
+}
+
 
 
 int main(int argc, char** argv) {
@@ -330,6 +443,24 @@ int main(int argc, char** argv) {
     std::vector<cv::KeyPoint> prev_image_keypoints;
     orb->detectAndCompute(prev_image, cv::Mat(), prev_image_keypoints, prev_image_descriptors);
     orb->detectAndCompute(curr_image, cv::Mat(), curr_image_keypoints, curr_image_descriptors);
+
+    bool filter_keypoints = static_cast<bool>(static_cast<int>(config_file["filter_keypoints"]));
+    if (filter_keypoints) {
+        // filter keypoints
+        int patch_width = config_file["patch_width"];
+        int patch_height = config_file["patch_height"];
+        int kps_per_patch = config_file["kps_per_patch"];
+        cv::Size patch_size = cv::Size(patch_width, patch_height);
+        filterKeypoints(cv::Size(prev_image.cols, prev_image.rows), patch_size, kps_per_patch, prev_image_keypoints, prev_image_descriptors);
+
+        // draw grid
+        drawGrid(prev_image, patch_size, kps_per_patch);
+
+        // draw keypoints
+        std::string tail;
+        tail = "_(" + std::to_string(patch_width) + ", " + std::to_string(patch_height) + ", " + std::to_string(kps_per_patch) + ")";
+        drawKeypointsSingleImage(p_id, prev_image, prev_image_keypoints, "vo_patch/filtered_keypoints", tail);
+    }
 
     //**========== 2. Feature matching ==========**//
     // create a matcher
@@ -386,9 +517,9 @@ int main(int argc, char** argv) {
 
     cv::Mat mask;
     cv::Mat essential_mat = cv::findEssentialMat(image1_kp_pts, image0_kp_pts, intrinsic, cv::RANSAC, 0.999, 1.0, mask);
-    cv::Mat ransac_matches;
 
-    // draw matches
+    // draw matches 
+    cv::Mat ransac_matches;
     cv::drawMatches(prev_image, prev_image_keypoints,
                     curr_image, curr_image_keypoints,
                     good_matches, ransac_matches, cv::Scalar::all(-1), cv::Scalar::all(-1), mask, cv::DrawMatchesFlags::NOT_DRAW_SINGLE_POINTS);
@@ -433,8 +564,8 @@ int main(int argc, char** argv) {
     aligned_poses.push_back(aligned_est_pose);
     calcRPE_rt(gt_poses, aligned_est_pose, rpe_rot, rpe_trans);
 
-    std::cout << "PREr: " << rpe_rot << std::endl;
-    std::cout << "PREt: " << rpe_trans << std::endl;
+    std::cout << "RPEr: " << rpe_rot << std::endl;
+    std::cout << "RPEt: " << rpe_trans << std::endl;
 
     //============ Log ============//
     logTrajectory(std::vector<Eigen::Isometry3d>{relative_pose});
