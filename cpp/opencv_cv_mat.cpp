@@ -30,5 +30,16 @@ int main() {
     cout <<"mat1:" << endl;
     cout << mat1 << endl;
 
+    // cv::Mat initialize with a vector
+    cv::Mat small_mat = (cv::Mat_<int>(1, 3) << 1, 2, 3);
+    std::vector<cv::Mat> vec{small_mat, small_mat};
+    cout << "small mat type: " << small_mat.type() << endl;
+    cv::Mat mat2;
+    for (auto elem : vec) {
+        mat2.push_back(elem);
+    }
+    cout <<"mat2:" << endl;
+    cout << mat2 << endl;
+
     return 0;
 }
