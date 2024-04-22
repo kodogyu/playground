@@ -1,6 +1,7 @@
 project(playground_cpp)
 
 cmake_minimum_required(VERSION 3.16)
+# set(CMAKE_CXX_COMPILER "/usr/bin/g++-11")
 set(CMAKE_CXX_FLAGS "-std=c++17")
 set(CMAKE_BUILD_TYPE Debug)
 
@@ -34,6 +35,8 @@ add_executable(chrono_measure_time chrono_measure_time.cpp)
 add_executable(basic_filesystem basic_filesystem.cpp)
 add_executable(basic_vector basic_vector.cpp)
 add_executable(basic_map basic_map.cpp)
+# boost
+add_executable(boost_format boost_format.cpp)
 # eigen
 add_executable(eigen_transform eigen_transform.cpp)
 add_executable(eigen_basic eigen_basic.cpp)
@@ -87,6 +90,9 @@ target_link_libraries(opencv_image_concat ${OpenCV_LIBS})
 add_executable(opencv_cv_fileStorage opencv_cv_fileStorage.cpp)
 target_link_libraries(opencv_cv_fileStorage ${OpenCV_LIBS})
 
+add_executable(opencv_fisheye_camera opencv_fisheye_camera.cpp)
+target_link_libraries(opencv_fisheye_camera ${OpenCV_LIBS})
+
 # Sophus files
 add_executable(sophus_basic sophus_basic.cpp)
 target_link_libraries(sophus_basic Sophus::Sophus)
@@ -104,3 +110,6 @@ target_link_libraries(visual_odometry_example ${OpenCV_LIBS} ${Pangolin_LIBRARIE
 
 add_executable(vo_patch vo_patch.cpp)
 target_link_libraries(vo_patch ${OpenCV_LIBS} ${Pangolin_LIBRARIES})
+
+add_executable(vo_lower_bound vo_lower_bound.cpp)
+target_link_libraries(vo_lower_bound ${OpenCV_LIBS} ${Pangolin_LIBRARIES})

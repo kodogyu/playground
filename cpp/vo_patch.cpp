@@ -17,12 +17,40 @@
 
 void logTrajectory(std::vector<Eigen::Isometry3d> poses);
 void displayPoses(const std::vector<Eigen::Isometry3d> &gt_poses, const std::vector<Eigen::Isometry3d> &est_poses, const std::vector<Eigen::Isometry3d> &aligned_poses);
+void displayFramesAndLandmarks(const std::vector<Eigen::Isometry3d> &est_poses, const std::vector<Eigen::Vector3d> &landmarks);
 
 // response comparison, for list sorting
 bool compare_response(cv::KeyPoint first, cv::KeyPoint second)
 {
   if (first.response < second.response) return true;
   else return false;
+}
+
+void triangulate2(cv::Mat intrinsic, std::vector<cv::Point2f> img0_kp_pts, std::vector<cv::Point2f> img1_kp_pts, Eigen::Isometry3d &cam1_pose, const cv::Mat &mask, std::vector<Eigen::Vector3d> &landmarks) {
+    Eigen::Matrix3d camera_intrinsic;
+    cv::cv2eigen(intrinsic, camera_intrinsic);
+    Eigen::MatrixXd prev_proj = Eigen::MatrixXd::Identity(3, 4);
+    Eigen::MatrixXd curr_proj = Eigen::MatrixXd::Identity(3, 4);
+
+    prev_proj = camera_intrinsic * prev_proj;
+    curr_proj = camera_intrinsic * curr_proj * cam1_pose.inverse().matrix();
+
+    for (int i = 0; i < img0_kp_pts.size(); i++) {
+        if (mask.at<unsigned char>(i) != 1) {
+            continue;
+        }
+
+        Eigen::Matrix4d A;
+        A.row(0) = img0_kp_pts[i].x * prev_proj.row(2) - prev_proj.row(0);
+        A.row(1) = img0_kp_pts[i].y * prev_proj.row(2) - prev_proj.row(1);
+        A.row(2) = img1_kp_pts[i].x * curr_proj.row(2) - curr_proj.row(0);
+        A.row(3) = img1_kp_pts[i].y * curr_proj.row(2) - curr_proj.row(1);
+
+        Eigen::JacobiSVD<Eigen::Matrix4d> svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
+        Eigen::Vector4d point_3d_homo = svd.matrixV().col(3);
+        Eigen::Vector3d point_3d = point_3d_homo.head(3) / point_3d_homo[3];
+        landmarks.push_back(point_3d);
+    }
 }
 
 void triangulate2(cv::Mat intrinsic, std::vector<cv::Point2f> img0_kp_pts, std::vector<cv::Point2f> img1_kp_pts, Eigen::Isometry3d &cam1_pose, std::vector<Eigen::Vector3d> &landmarks) {
@@ -32,7 +60,7 @@ void triangulate2(cv::Mat intrinsic, std::vector<cv::Point2f> img0_kp_pts, std::
     Eigen::MatrixXd curr_proj = Eigen::MatrixXd::Identity(3, 4);
 
     prev_proj = camera_intrinsic * prev_proj;
-    curr_proj = camera_intrinsic * curr_proj * cam1_pose.matrix();
+    curr_proj = camera_intrinsic * curr_proj * cam1_pose.inverse().matrix();
 
     for (int i = 0; i < img0_kp_pts.size(); i++) {
         Eigen::Matrix4d A;
@@ -46,6 +74,41 @@ void triangulate2(cv::Mat intrinsic, std::vector<cv::Point2f> img0_kp_pts, std::
         Eigen::Vector3d point_3d = point_3d_homo.head(3) / point_3d_homo[3];
         landmarks.push_back(point_3d);
     }
+}
+
+int triangulate2_count(cv::Mat intrinsic, std::vector<cv::Point2f> img0_kp_pts, std::vector<cv::Point2f> img1_kp_pts, Eigen::Isometry3d &cam1_pose, const cv::Mat &mask/*, std::vector<Eigen::Vector3d> &landmarks*/) {
+    Eigen::Matrix3d camera_intrinsic;
+    cv::cv2eigen(intrinsic, camera_intrinsic);
+    Eigen::MatrixXd prev_proj = Eigen::MatrixXd::Identity(3, 4);
+    Eigen::MatrixXd curr_proj = Eigen::MatrixXd::Identity(3, 4);
+
+    prev_proj = camera_intrinsic * prev_proj;
+    curr_proj = camera_intrinsic * curr_proj * cam1_pose.inverse().matrix();
+
+    int positive_cnt = 0;
+    for (int i = 0; i < img0_kp_pts.size(); i++) {
+        if (mask.at<unsigned char>(i) != 1) {
+            continue;
+        }
+
+        Eigen::Matrix4d A;
+        A.row(0) = img0_kp_pts[i].x * prev_proj.row(2) - prev_proj.row(0);
+        A.row(1) = img0_kp_pts[i].y * prev_proj.row(2) - prev_proj.row(1);
+        A.row(2) = img1_kp_pts[i].x * curr_proj.row(2) - curr_proj.row(0);
+        A.row(3) = img1_kp_pts[i].y * curr_proj.row(2) - curr_proj.row(1);
+
+        Eigen::JacobiSVD<Eigen::Matrix4d> svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
+        Eigen::Vector4d point_3d_homo = svd.matrixV().col(3);
+        Eigen::Vector3d point_3d = point_3d_homo.head(3) / point_3d_homo[3];
+        // landmarks.push_back(point_3d);
+
+        Eigen::Vector3d cam1_point_3d = cam1_pose.inverse().matrix().block<3, 4>(0, 0) * point_3d_homo;
+        // std::cout << "landmark(world) z: " << point_3d.z() << ", (camera) z: " << cam1_point_3d.z() << std::endl;
+        if (cam1_point_3d.z() > 0 && point_3d.z() > 0) {
+            positive_cnt++;
+        }
+    }
+    return positive_cnt;
 }
 
 double calcReprojectionError(cv::Mat &intrinsic,
@@ -120,7 +183,7 @@ double calcReprojectionError(cv::Mat &intrinsic,
         cv::rectangle(image0_copy,
                     measurement_point0 - cv::Point2f(5, 5),
                     measurement_point0 + cv::Point2f(5, 5),
-                    mask.at<unsigned char>(i) == 1 ? cv::Scalar(0, 255, 0) : cv::Scalar(0, 255, 255));  // green, (yellow)
+                    mask.at<unsigned char>(i) == 1 ? cv::Scalar(0, 255, 0) : cv::Scalar(0, 125, 255));  // green, (orange)
         cv::circle(image0_copy,
                     projected_point0,
                     2,
@@ -132,7 +195,7 @@ double calcReprojectionError(cv::Mat &intrinsic,
         cv::rectangle(image1_copy,
                     measurement_point1 - cv::Point2f(5, 5),
                     measurement_point1 + cv::Point2f(5, 5),
-                    mask.at<unsigned char>(i) == 1 ? cv::Scalar(0, 255, 0) : cv::Scalar(0, 255, 255));  // green, (yellow)
+                    mask.at<unsigned char>(i) == 1 ? cv::Scalar(0, 255, 0) : cv::Scalar(0, 125, 255));  // green, (orange)
         cv::circle(image1_copy,
                     projected_point1,
                     2,
@@ -409,6 +472,7 @@ int main(int argc, char** argv) {
     cv::Mat intrinsic = (cv::Mat_<double>(3, 3) << config_file["fx"], config_file["s"], config_file["cx"],
                                                     0, config_file["fy"], config_file["cy"],
                                                     0, 0, 1);
+    cv::Mat distortion = (cv::Mat_<double>(5, 1) << config_file["k1"], config_file["k2"], config_file["p1"], config_file["p2"], config_file["k3"]);
     cv::Ptr<cv::ORB> orb = cv::ORB::create(config_file["num_features"], 1.2, 8, 31, 0, 2, cv::ORB::HARRIS_SCORE, 31, 25);
 
     int num_matches = config_file["num_matches"];
@@ -426,13 +490,17 @@ int main(int argc, char** argv) {
 
     //**========== 0. Image load ==========**//
     // read images
-    cv::Mat prev_image = cv::imread(config_file["prev_frame"], cv::IMREAD_GRAYSCALE);
+    cv::Mat prev_image_dist = cv::imread(config_file["prev_frame"], cv::IMREAD_GRAYSCALE);
+    cv::Mat prev_image;
+    cv::undistort(prev_image_dist, prev_image, intrinsic, distortion);
     std::string prev_id = std::string(config_file["prev_frame"]);
     int p_id = std::stoi(prev_id.substr(prev_id.length() - 10, 6));
     poses.push_back(Eigen::Isometry3d::Identity());
 
     // new Frame!
-    cv::Mat curr_image = cv::imread(config_file["curr_frame"], cv::IMREAD_GRAYSCALE);
+    cv::Mat curr_image_dist = cv::imread(config_file["curr_frame"], cv::IMREAD_GRAYSCALE);
+    cv::Mat curr_image;
+    cv::undistort(curr_image_dist, curr_image, intrinsic, distortion);
     std::string curr_id = std::string(config_file["curr_frame"]);
     int c_id = std::stoi(curr_id.substr(curr_id.length() - 10, 6));
 
@@ -557,9 +625,51 @@ int main(int argc, char** argv) {
     Eigen::Vector3d translation_mat;
     cv::cv2eigen(R, rotation_mat);
     cv::cv2eigen(t, translation_mat);
+
     relative_pose.linear() = rotation_mat;
     relative_pose.translation() = translation_mat;
     poses.push_back(relative_pose);
+
+
+    // cv::Mat R1, R2, t;
+    // cv::decomposeEssentialMat(essential_mat, R1, R2, t);
+
+    // std::vector<Eigen::Isometry3d> rel_poses(4, Eigen::Isometry3d::Identity());
+    // std::vector<int> positive_cnts(4, 0);
+    // for (int i = 0; i < 4; i++) {
+    //     if (i == 0) {
+    //         cv::cv2eigen(R1, rotation_mat);
+    //         cv::cv2eigen(t, translation_mat);
+    //     }
+    //     else if (i == 1) {
+    //         cv::cv2eigen(R1, rotation_mat);
+    //         cv::cv2eigen(-t, translation_mat);
+    //     }
+    //     else if (i == 2) {
+    //         cv::cv2eigen(R2, rotation_mat);
+    //         cv::cv2eigen(t, translation_mat);
+    //     }
+    //     else if (i == 3) {
+    //         cv::cv2eigen(R2, rotation_mat);
+    //         cv::cv2eigen(-t, translation_mat);
+    //     }
+    //     rel_poses[i].linear() = rotation_mat;
+    //     rel_poses[i].translation() = translation_mat;
+    //     positive_cnts[i] = triangulate2_count(intrinsic, image0_kp_pts, image1_kp_pts, rel_poses[i], mask);
+    //     std::cout << "cnt[" << i << "]: " << positive_cnts[i] << std::endl;
+    //     // poses.push_back(rel_poses[i]);
+    // }
+    // int max_cnt = 0, max_idx = 0;
+    // for (int i = 0; i < 4; i++) {
+    //     // std::cout << "cnt[" << i << "]: " << positive_cnts[i] << std::endl;
+    //     if (positive_cnts[i] > max_cnt) {
+    //         max_cnt = positive_cnts[i];
+    //         max_idx = i;
+    //     }
+    // }
+    // std::cout << "max idx: " << max_idx << std::endl;
+    // relative_pose = rel_poses[max_idx];
+    // poses.push_back(rel_poses[max_idx]);
 
     //**========== 4. Triangulation ==========**//
     std::vector<Eigen::Vector3d> landmarks;
@@ -586,6 +696,7 @@ int main(int argc, char** argv) {
     //============ Log ============//
     logTrajectory(std::vector<Eigen::Isometry3d>{relative_pose});
     displayPoses(gt_poses, poses, aligned_poses);
+    displayFramesAndLandmarks(poses, landmarks);
 
     return 0;
 }
@@ -732,10 +843,102 @@ void displayPoses(const std::vector<Eigen::Isometry3d> &gt_poses, const std::vec
 
         // draw gt
         drawGT(gt_poses);
-        // draw aligned poses
-        drawPoses(aligned_poses);
+        // // draw aligned poses
+        // drawPoses(aligned_poses);
 
         pangolin::FinishFrame();
     }
 }
+
+void displayFramesAndLandmarks(const std::vector<Eigen::Isometry3d> &est_poses, const std::vector<Eigen::Vector3d> &landmarks) {
+    pangolin::CreateWindowAndBind("Visual Odometry Viewer", 1024, 768);
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    pangolin::OpenGlRenderState vis_camera(
+        pangolin::ProjectionMatrix(1024, 768, 400, 400, 512, 384, 0.1, 1000),
+        pangolin::ModelViewLookAt(0, -3, -3, 0, 0, 0, 0.0, -1.0, 0.0));
+
+    // Add named OpenGL viewport to window and provide 3D Handler
+    pangolin::View& vis_display =
+        pangolin::CreateDisplay()
+            .SetBounds(0.0, 1.0, 0.0, 1.0, -1024.0f / 768.0f)
+            .SetHandler(new pangolin::Handler3D(vis_camera));
+
+    const float red[3] = {1, 0, 0};
+    const float orange[3] = {1, 0.5, 0};
+    const float yellow[3] = {1, 1, 0};
+    const float green[3] = {0, 1, 0};
+    const float blue[3] = {0, 0, 1};
+    const float navy[3] = {0, 0.02, 1};
+    const float purple[3] = {0.5, 0, 1};
+    std::vector<const float*> colors {red, orange, yellow, green, blue, navy, purple};
+
+
+    while (!pangolin::ShouldQuit()) {
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+        vis_display.Activate(vis_camera);
+
+        // draw the original axis
+        glLineWidth(3);
+        glColor3f(1.0, 0.0, 0.0);
+        glBegin(GL_LINES);
+        glVertex3f(0, 0, 0);
+        glVertex3f(1, 0, 0);
+        glColor3f(0.0, 1.0, 0.0);
+        glVertex3f(0, 0, 0);
+        glVertex3f(0, 1, 0);
+        glColor3f(0.0, 0.0, 1.0);
+        glVertex3f(0, 0, 0);
+        glVertex3f(0, 0, 1);
+        glEnd();
+
+        int color_idx = 0;
+        // draw transformed axis
+        Eigen::Vector3d last_center(0.0, 0.0, 0.0);
+        for (auto cam_pose : est_poses) {
+            Eigen::Vector3d Ow = cam_pose.translation();
+            Eigen::Vector3d Xw = cam_pose * (0.1 * Eigen::Vector3d(1.0, 0.0, 0.0));
+            Eigen::Vector3d Yw = cam_pose * (0.1 * Eigen::Vector3d(0.0, 1.0, 0.0));
+            Eigen::Vector3d Zw = cam_pose * (0.1 * Eigen::Vector3d(0.0, 0.0, 1.0));
+            glBegin(GL_LINES);
+            glColor3f(1.0, 0.0, 0.0);
+            glVertex3d(Ow[0], Ow[1], Ow[2]);
+            glVertex3d(Xw[0], Xw[1], Xw[2]);
+            glColor3f(0.0, 1.0, 0.0);
+            glVertex3d(Ow[0], Ow[1], Ow[2]);
+            glVertex3d(Yw[0], Yw[1], Yw[2]);
+            glColor3f(0.0, 0.0, 1.0);
+            glVertex3d(Ow[0], Ow[1], Ow[2]);
+            glVertex3d(Zw[0], Zw[1], Zw[2]);
+            glEnd();
+            // draw odometry line
+            glBegin(GL_LINES);
+            glColor3f(colors[color_idx][0], colors[color_idx][1], colors[color_idx][2]);
+            glVertex3d(last_center[0], last_center[1], last_center[2]);
+            glVertex3d(Ow[0], Ow[1], Ow[2]);
+            glEnd();
+
+            // draw map points in world coordinate
+            glPointSize(5.0f);
+            glBegin(GL_POINTS);
+            for (auto landmark : landmarks) {
+                glColor3f(colors[color_idx][0], colors[color_idx][1], colors[color_idx][2]);
+                glVertex3d(landmark[0], landmark[1], landmark[2]);
+            }
+            glEnd();
+
+            last_center = Ow;
+
+            color_idx++;
+            color_idx = color_idx % colors.size();
+        }
+
+        pangolin::FinishFrame();
+    }
+}
+
+
 

@@ -1,24 +1,4 @@
 %YAML:1.0
-
-#========== Dataset ==========#
-num_frames: 10
-
-# # KITTI-360
-# is_kitti: 0
-# # perspective image
-# left_images_dir: /home/kodogyu/Datasets/KITTI-360/data_2d_raw/2013_05_28_drive_0000_sync/image_00/data_rect
-# right_images_dir: /home/kodogyu/Datasets/KITTI-360/data_2d_raw/2013_05_28_drive_0000_sync/image_01/data_rect
-
-# # fisheye image
-# left_images_dir: /home/kodogyu/Datasets/KITTI-360/data_2d_raw/2013_05_28_drive_0000_sync/image_02/data_rgb
-# right_images_dir: /home/kodogyu/Datasets/KITTI-360/data_2d_raw/2013_05_28_drive_0000_sync/image_03/data_rgb
-
-# KITTI
-is_kitti: 1
-left_images_dir: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0
-right_images_dir: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_1
-
-
 #========== Camera parameters ==========#
 # # KITTI-360
 # fx: 788.629315
@@ -26,6 +6,11 @@ right_images_dir: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_1
 # s: 0.0
 # cx: 687.158398
 # cy: 317.752196
+# k1: -0.344441
+# k2: 0.141678
+# p1: 0.000414
+# p2: -0.000222
+# k3: -0.029608
 
 # KITTI
 fx: 718.856
@@ -48,10 +33,10 @@ display_type: 0
 gt_path: /home/kodogyu/Datasets/KITTI/dataset/poses/00.txt
 
 #========== Feature extraction ==========#
-num_features: 3000
+num_features: 1000
 
 #========== Feature matching ==========#
-des_dist_thresh: 0.5
+des_dist_thresh: 0.6
 
 
 #========== Optimization ==========#
@@ -60,10 +45,15 @@ window_size: 2
 optimizer_verbose: 0
 
 #========== VO patch ==========#
-prev_frame: /home/kodogyu/shared_folder_local/kitti_100_frames/000001.png
-curr_frame: /home/kodogyu/shared_folder_local/kitti_100_frames/000002.png
 # prev_frame: vo_patch/source_frames/000000.png
 # curr_frame: vo_patch/source_frames/000001.png
+prev_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000003.png
+curr_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000004.png
+prev_frame_idx: 3
+
+# # KITTI-360
+# prev_frame: /home/kodogyu/Datasets/KITTI-360/data_2d_raw/2013_05_28_drive_0000_sync/image_00/data_rgb/0000000000.png
+# curr_frame: /home/kodogyu/Datasets/KITTI-360/data_2d_raw/2013_05_28_drive_0000_sync/image_00/data_rgb/0000000001.png
 
 # num_matches:
 #   -1 : all matches

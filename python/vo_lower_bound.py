@@ -11,7 +11,7 @@ FEATURE_WINDOW_NAME = "Feature window"
 FEATURE_IMAGE_PATCH_WINDOW_NAME = "image patch"
 PREV_IMAGE_WINDOW_NAME = "previous image"
 PREV_IMAGE_PATCH_WINDOW_NAME = "previous image lens"
-IMAGE_SCALE = 2
+IMAGE_SCALE = 1
 
 # function to display the image patch
 # around the points clicked on the image
@@ -41,8 +41,8 @@ def drawImagePatch(window_name, image, x, y):
     print(f"Patch center: {x}, {y}")
 
     image_patch = image[y - patch_size//2 : y + patch_size//2 + 1, x - patch_size//2 : x + patch_size//2 + 1]
-    resized_image_patch = cv2.resize(image_patch, (resized_patch_size, resized_patch_size), None)
-    # resized_image_patch = cv2.resize(image_patch, (resized_patch_size, resized_patch_size), cv2.INTER_NEAREST_EXACT)
+    # resized_image_patch = cv2.resize(image_patch, (resized_patch_size, resized_patch_size), None)
+    resized_image_patch = cv2.resize(image_patch, (resized_patch_size, resized_patch_size), cv2.INTER_NEAREST_EXACT)
 
     cv2.line(resized_image_patch, (resized_patch_size//2, 0), (resized_patch_size//2, resized_patch_size), (0, 0, 255), 2)
     cv2.line(resized_image_patch, (0, resized_patch_size//2), (resized_patch_size, resized_patch_size//2), (0, 0, 255), 2)
@@ -72,8 +72,8 @@ def runOnce(prev_image_idx, prev_image, curr_image):
     #     cv2.circle(prev_image, (int(x1), int(y1)), 3, (0, 255, 0), 1)
     cv2.putText(prev_image, f"frame {prev_image_idx} & {prev_image_idx + 1}", (0, 20), cv2.FONT_HERSHEY_PLAIN, 1, (0, 255, 0))
 
-    scaled_prev_image = cv2.resize(prev_image, (prev_image.shape[1] * IMAGE_SCALE, prev_image.shape[0] * IMAGE_SCALE), None)
-    # scaled_prev_image = cv2.resize(prev_image, (prev_image.shape[1] * IMAGE_SCALE, prev_image.shape[0] * IMAGE_SCALE), cv2.INTER_NEAREST_EXACT)
+    # scaled_prev_image = cv2.resize(prev_image, (prev_image.shape[1] * IMAGE_SCALE, prev_image.shape[0] * IMAGE_SCALE), None)
+    scaled_prev_image = cv2.resize(prev_image, (prev_image.shape[1] * IMAGE_SCALE, prev_image.shape[0] * IMAGE_SCALE), cv2.INTER_NEAREST_EXACT)
     cv2.imshow(FEATURE_WINDOW_NAME, scaled_prev_image)
 
     global MOUSE_POINT
@@ -157,8 +157,8 @@ def updateFeatureWindow(image, feature_dict):
         cv2.rectangle(window_image, (item[1][0] - 5, item[1][1] - 5), (item[1][0] + 5, item[1][1] + 5), (255, 0, 0), 1)
         cv2.putText(window_image, f"{item[0]}", item[1], cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 255))
 
-    scaled_window_image = cv2.resize(window_image, (image.shape[1] * IMAGE_SCALE, image.shape[0] * IMAGE_SCALE), None)
-    # scaled_window_image = cv2.resize(window_image, (image.shape[1] * IMAGE_SCALE, image.shape[0] * IMAGE_SCALE), cv2.INTER_NEAREST_EXACT)
+    # scaled_window_image = cv2.resize(window_image, (image.shape[1] * IMAGE_SCALE, image.shape[0] * IMAGE_SCALE), None)
+    scaled_window_image = cv2.resize(window_image, (image.shape[1] * IMAGE_SCALE, image.shape[0] * IMAGE_SCALE), cv2.INTER_NEAREST_EXACT)
     cv2.imshow(FEATURE_WINDOW_NAME, scaled_window_image)
 
 def displayPrevImage(frame_feature_dict, prev_image):
@@ -168,8 +168,8 @@ def displayPrevImage(frame_feature_dict, prev_image):
         prev_image = cv2.rectangle(prev_image, (feature_point[0] - 5, feature_point[1] - 5), (feature_point[0] + 5, feature_point[1] + 5), (0, 255, 0), 1)
         prev_image = cv2.putText(prev_image, f"{feature_idx}", feature_point, cv2.FONT_HERSHEY_PLAIN, 1, (0, 0, 255))
 
-    scaled_prev_image = cv2.resize(prev_image, (prev_image.shape[1] * IMAGE_SCALE, prev_image.shape[0] * IMAGE_SCALE), None)
-    # scaled_prev_image = cv2.resize(prev_image, (prev_image.shape[1] * IMAGE_SCALE, prev_image.shape[0] * IMAGE_SCALE), cv2.INTER_NEAREST_EXACT)
+    # scaled_prev_image = cv2.resize(prev_image, (prev_image.shape[1] * IMAGE_SCALE, prev_image.shape[0] * IMAGE_SCALE), None)
+    scaled_prev_image = cv2.resize(prev_image, (prev_image.shape[1] * IMAGE_SCALE, prev_image.shape[0] * IMAGE_SCALE), cv2.INTER_NEAREST_EXACT)
     cv2.imshow(PREV_IMAGE_WINDOW_NAME, scaled_prev_image)
 
     cv2.setMouseCallback(PREV_IMAGE_WINDOW_NAME, click_event_prev_win, prev_image)
@@ -177,7 +177,8 @@ def displayPrevImage(frame_feature_dict, prev_image):
 if __name__ == "__main__":
     # file paths
     file_list = []
-    image_dir = "/home/kodogyu/shared_folder_local/kitti_100_frames/"
+    image_dir = "/home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/"
+    # image_dir = "/home/kodogyu/shared_folder_local/kitti_100_frames/"
 
     total_frames = 100
     for frame_idx in range(total_frames):
