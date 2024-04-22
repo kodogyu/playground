@@ -60,14 +60,16 @@ window_size: 2
 optimizer_verbose: 0
 
 #========== VO patch ==========#
-prev_frame: vo_patch/source_frames/000006.png
-curr_frame: vo_patch/source_frames/000007.png
+prev_frame: /home/kodogyu/shared_folder_local/kitti_100_frames/000001.png
+curr_frame: /home/kodogyu/shared_folder_local/kitti_100_frames/000002.png
+# prev_frame: vo_patch/source_frames/000000.png
+# curr_frame: vo_patch/source_frames/000001.png
 
 # num_matches:
 #   -1 : all matches
 num_matches: -1
 
-filter_keypoints: 1
+filter_keypoints: 0
 patch_width: 100
 patch_height: 100
 kps_per_patch: 100
