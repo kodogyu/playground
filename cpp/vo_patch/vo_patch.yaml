@@ -47,9 +47,9 @@ optimizer_verbose: 0
 #========== VO patch ==========#
 # prev_frame: vo_patch/source_frames/000000.png
 # curr_frame: vo_patch/source_frames/000001.png
-prev_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000003.png
-curr_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000004.png
-prev_frame_idx: 3
+prev_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000000.png
+curr_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000001.png
+prev_frame_idx: 0
 
 # # KITTI-360
 # prev_frame: /home/kodogyu/Datasets/KITTI-360/data_2d_raw/2013_05_28_drive_0000_sync/image_00/data_rgb/0000000000.png

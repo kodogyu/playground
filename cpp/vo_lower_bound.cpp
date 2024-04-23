@@ -15,7 +15,15 @@
 
 #include <pangolin/pangolin.h>
 
-
+/*#include <gtsam/geometry/Pose3.h>
+#include <gtsam/slam/PriorFactor.h>
+#include <gtsam/slam/StereoFactor.h>
+#include <gtsam/slam/ProjectionFactor.h>
+#include <gtsam/slam/SmartProjectionPoseFactor.h>
+#include <gtsam/inference/Symbol.h>
+#include <gtsam/nonlinear/NonlinearFactorGraph.h>
+#include <gtsam/nonlinear/NonlinearEquality.h>
+#include <gtsam/nonlinear/LevenbergMarquardtOptimizer.h>*/
 void drawKeypoints(int p_id,
                     cv::Mat image0, std::vector<cv::Point2f> img0_kp_pts,
                     int c_id,
@@ -298,6 +306,10 @@ double calcReprojectionError(cv::Mat &intrinsic,
     cv::imwrite("vo_patch/reprojected_landmarks/frame" + std::to_string(p_id) + "_" + std::to_string(num_matches) + "_proj.png", image0_copy);
     cv::imwrite("vo_patch/reprojected_landmarks/frame" + std::to_string(c_id) + "_" + std::to_string(num_matches) + "_proj.png", image1_copy);
 
+    cv::Mat image_concat;
+    cv::vconcat(image0_copy, image1_copy, image_concat);
+    cv::imwrite("vo_patch/reprojected_landmarks/frame" + std::to_string(p_id) + "&frame" + std::to_string(c_id) + "_" + std::to_string(num_matches) + "_proj.png", image_concat);
+
     std::cout << "pose inliers: " << inlier_cnt << std::endl;
     std::cout << "inlier reprojected error: " << ((inlier_reproj_error0 + inlier_reproj_error1) / inlier_cnt) / 2 << std::endl;
 
@@ -415,7 +427,7 @@ void displayPoses(const std::vector<Eigen::Isometry3d> &gt_poses, const std::vec
 }
 
 void displayFramesAndLandmarks(const std::vector<Eigen::Isometry3d> &est_poses, const std::vector<Eigen::Vector3d> &landmarks) {
-    pangolin::CreateWindowAndBind("Visual Odometry Viewer", 1024, 768);
+    pangolin::CreateWindowAndBind("Visual Odometry Patch2", 1024, 768);
     glEnable(GL_DEPTH_TEST);
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -554,6 +566,123 @@ void logTrajectory(std::vector<Eigen::Isometry3d> poses) {
     }
 }
 
+/*void optimizeFrames(std::vector<std::shared_ptr<Frame>> &frames, bool verbose) {
+    // create a graph
+    gtsam::NonlinearFactorGraph graph;
+
+    // stereo camera calibration object
+    gtsam::Cal3_S2::shared_ptr K(
+        new gtsam::Cal3_S2(frames[0]->pCamera_->fx_,
+                                frames[0]->pCamera_->fy_,
+                                frames[0]->pCamera_->s_,
+                                frames[0]->pCamera_->cx_,
+                                frames[0]->pCamera_->cy_));
+
+    // create initial values
+    gtsam::Values initial_estimates;
+
+    // 1. Add Values and Factors
+    const auto measurement_noise = gtsam::noiseModel::Isotropic::Sigma(2, 1.0);  // std of 1px.
+
+    // insert values and factors of the frames
+    std::vector<int> frame_pose_map;  // frame_pose_map[pose_idx] = frame_id
+    std::vector<int> landmark_idx_id_map;  // landmark_map[landmark_idx] = landmark_id
+    std::map<int, int> landmark_id_idx_map;  // landmark_map[landmark_id] = landmark_idx
+
+    int landmark_idx = 0;
+    int landmarks_cnt = 0;
+    for (int frame_idx = 0; frame_idx < frames.size(); frame_idx++) {
+        std::shared_ptr<Frame> pFrame = frames[frame_idx];
+        gtsam::Pose3 frame_pose = gtsam::Pose3(gtsam::Rot3(pFrame->pose_.rotation()), gtsam::Point3(pFrame->pose_.translation()));
+        // insert initial value of the frame pose
+        initial_estimates.insert(gtsam::Symbol('x', frame_idx), frame_pose);
+
+        for (const auto pLandmark : pFrame->landmarks_) {
+            // insert initial value of the landmark
+            std::map<int, int>::iterator landmark_map_itr = landmark_id_idx_map.find(pLandmark->id_);
+            if (landmark_map_itr == landmark_id_idx_map.end()) {  // new landmark
+                landmark_idx = landmarks_cnt;
+
+                initial_estimates.insert<gtsam::Point3>(gtsam::Symbol('l', landmark_idx), gtsam::Point3(pLandmark->point_3d_));
+                landmark_idx_id_map.push_back(pLandmark->id_);
+                landmark_id_idx_map[pLandmark->id_] = landmark_idx;
+
+                landmarks_cnt++;
+            }
+            else {
+                landmark_idx = landmark_map_itr->second;
+            }
+            // 2D measurement
+            cv::Point2f measurement_cv = pFrame->keypoints_[pLandmark->observations_.find(pFrame->id_)->second].pt;
+            gtsam::Point2 measurement(measurement_cv.x, measurement_cv.y);
+            // add measurement factor
+            graph.emplace_shared<gtsam::GenericProjectionFactor<gtsam::Pose3, gtsam::Point3, gtsam::Cal3_S2>>(measurement, measurement_noise,
+                                                                                                            gtsam::Symbol('x', frame_idx), gtsam::Symbol('l', landmark_idx),
+                                                                                                            K);
+        }
+    }
+
+
+    // 2. prior factors
+    gtsam::Pose3 first_pose = gtsam::Pose3(gtsam::Rot3(frames[0]->pose_.rotation()), gtsam::Point3(frames[0]->pose_.translation()));
+    // gtsam::Pose3 second_pose = gtsam::Pose3(gtsam::Rot3(frames[1]->pose_.rotation()), gtsam::Point3(frames[1]->pose_.translation()));
+    // add a prior on the first pose
+    const auto pose_noise = gtsam::noiseModel::Diagonal::Sigmas((gtsam::Vector(6) << gtsam::Vector3::Constant(0.3), gtsam::Vector3::Constant(0.1)).finished());  // std of 0.3m for x,y,z, 0.1rad for r,p,y
+    graph.addPrior(gtsam::Symbol('x', 0), first_pose, pose_noise);
+    // // add a prior on the second pose (for scale)
+    // graph.addPrior(gtsam::Symbol('x', 1), second_pose, pose_noise);
+    // add a prior on the first landmark (for scale)
+    auto point_noise = gtsam::noiseModel::Isotropic::Sigma(3, 0.1);
+    graph.addPrior(gtsam::Symbol('l', 0), frames[0]->landmarks_[0]->point_3d_, point_noise);
+
+    // 3. Optimize
+    gtsam::LevenbergMarquardtOptimizer optimizer(graph, initial_estimates);
+    // start timer [optimization]
+    const std::chrono::time_point<std::chrono::steady_clock> optimization_start = std::chrono::steady_clock::now();
+    gtsam::Values result = optimizer.optimize();
+    // end timer [optimization]
+    const std::chrono::time_point<std::chrono::steady_clock> optimization_end = std::chrono::steady_clock::now();
+    auto optimization_diff = optimization_end - optimization_start;
+    std::cout << "GTSAM Optimization elapsed time: "
+                << std::chrono::duration_cast<std::chrono::milliseconds>(optimization_diff).count() << "[ms]" << std::endl;
+
+    std::cout << "initial error = " << graph.error(initial_estimates) << std::endl;
+    std::cout << "final error = " << graph.error(result) << std::endl;
+
+
+    // 4. Recover result pose
+    for (int frame_idx = 0; frame_idx < frames.size(); frame_idx++) {
+        std::shared_ptr<Frame> pFrame = frames[frame_idx];
+        pFrame->pose_ = result.at<gtsam::Pose3>(gtsam::Symbol('x', frame_idx)).matrix();
+
+        std::shared_ptr<Frame> pPrev_frame = pFrame->pPrevious_frame_.lock();
+        pFrame->relative_pose_ = pPrev_frame->pose_.inverse() * pFrame->pose_;
+
+        // Recover Landmark point
+        for (int j = 0; j < pFrame->landmarks_.size(); j++) {
+            std::shared_ptr<Landmark> pLandmark = pFrame->landmarks_[j];
+            std::map<int, int>::iterator landmark_map_itr = landmark_id_idx_map.find(pLandmark->id_);
+            if (landmark_map_itr != landmark_id_idx_map.end()) {
+                pLandmark->point_3d_ = result.at<gtsam::Point3>(gtsam::Symbol('l', landmark_map_itr->second));
+            }
+        }
+    }
+    if (verbose) {
+        graph.print("graph print:\n");
+        result.print("optimization result:\n");
+    }
+}
+*/
+
+int countMask(const cv::Mat &mask) {
+    int count = 0;
+    for (int i = 0; i < 10; i++) {
+        if (mask.at<unsigned char>(i) == 1) {
+            count++;
+        }
+    }
+    return count;
+}
 
 int main(int argc, char** argv) {
     std::cout << CV_VERSION << std::endl;
@@ -597,9 +726,15 @@ int main(int argc, char** argv) {
 
     //**========== 2. Feature matching ==========**//
     // frame0
-    std::vector<cv::Point2f> frame0_kp_pts_test = {cv::Point2f(89, 92), cv::Point2f(280, 148), cv::Point2f(437, 204), cv::Point2f(434, 161), cv::Point2f(495, 188), cv::Point2f(660, 150), cv::Point2f(709, 136), cv::Point2f(808, 127), cv::Point2f(913, 110), cv::Point2f(899, 294)};
+    // std::vector<cv::Point2f> frame0_kp_pts_test = {cv::Point2f(280, 148),cv::Point2f(344, 205), cv::Point2f(440, 203), cv::Point2f(487, 191), cv::Point2f(640, 123), cv::Point2f(808, 126), cv::Point2f(917, 111), cv::Point2f(908, 295), cv::Point2f(771, 157), cv::Point2f(870, 155)};
+    // std::vector<cv::Point2f> frame0_kp_pts_test = {cv::Point2f(89, 92), cv::Point2f(280, 148), cv::Point2f(437, 204), cv::Point2f(434, 161), cv::Point2f(495, 188), cv::Point2f(660, 150), cv::Point2f(709, 136), cv::Point2f(808, 127), cv::Point2f(913, 110), cv::Point2f(899, 294)};
+    std::vector<cv::Point2f> frame0_kp_pts_test = {cv::Point2f(89.0, 92.0), cv::Point2f(279.65207, 147.67671), cv::Point2f(440.3918, 203.43727), cv::Point2f(434.0, 161.0), cv::Point2f(486.80063, 190.52914), cv::Point2f(661.3766, 148.82133), cv::Point2f(709.0, 136.0), cv::Point2f(807.58307, 125.778046), cv::Point2f(916.523, 110.59789), cv::Point2f(907.6637, 294.75223)};
+
     // frame1
-    std::vector<cv::Point2f> frame1_kp_pts_test = {cv::Point2f(77, 92), cv::Point2f(275, 149), cv::Point2f(435, 207), cv::Point2f(435, 163), cv::Point2f(496, 190), cv::Point2f(664, 150), cv::Point2f(714, 136), cv::Point2f(817, 126), cv::Point2f(925, 109), cv::Point2f(933, 307)};
+    // std::vector<cv::Point2f> frame1_kp_pts_test = {cv::Point2f(275, 150),cv::Point2f(340, 208), cv::Point2f(439, 206), cv::Point2f(488, 193), cv::Point2f(642, 124), cv::Point2f(816, 125), cv::Point2f(929, 109), cv::Point2f(943, 308), cv::Point2f(779, 158), cv::Point2f(881, 155)};
+    // std::vector<cv::Point2f> frame1_kp_pts_test = {cv::Point2f(77, 92), cv::Point2f(275, 149), cv::Point2f(435, 207), cv::Point2f(435, 163), cv::Point2f(496, 190), cv::Point2f(664, 150), cv::Point2f(714, 136), cv::Point2f(817, 126), cv::Point2f(925, 109), cv::Point2f(933, 307)};
+    std::vector<cv::Point2f> frame1_kp_pts_test = {cv::Point2f(76.435524, 92.402176), cv::Point2f(274.63477, 149.50064), cv::Point2f(439.3174, 206.34424), cv::Point2f(435.0, 163.0), cv::Point2f(487.71252, 192.5296), cv::Point2f(664.4662, 149.73691), cv::Point2f(714.8803, 135.63571), cv::Point2f(816.14087, 125.12716), cv::Point2f(928.7381, 109.08112), cv::Point2f(942.7255, 307.60168)};
+
     // frame2
     std::vector<cv::Point2f> frame2_kp_pts_test = {cv::Point2f(65, 90), cv::Point2f(270, 149), cv::Point2f(434, 208), cv::Point2f(436, 163), cv::Point2f(498, 191), cv::Point2f(668, 151), cv::Point2f(720, 136), cv::Point2f(827, 125), cv::Point2f(939, 108), cv::Point2f(977, 324)};
     // frame3
@@ -609,21 +744,16 @@ int main(int argc, char** argv) {
 
     std::vector<std::vector<cv::Point2f>> matches_vec = {frame0_kp_pts_test, frame1_kp_pts_test, frame2_kp_pts_test, frame3_kp_pts_test, frame4_kp_pts_test};
 
+    // std::vector<cv::Point2f> prev_frame_kp_pts = {cv::Point2f(51, 88), cv::Point2f(265, 149), cv::Point2f(432, 210), cv::Point2f(437, 164), cv::Point2f(500, 193), cv::Point2f(672, 151), cv::Point2f(726, 136), cv::Point2f(838, 125), cv::Point2f(954, 106)};
+    // std::vector<cv::Point2f> curr_frame_kp_pts = {cv::Point2f(37, 85), cv::Point2f(260, 148), cv::Point2f(431, 211), cv::Point2f(439, 164), cv::Point2f(502, 193), cv::Point2f(677, 151), cv::Point2f(733, 136), cv::Point2f(851, 123), cv::Point2f(972, 104)};
     int prev_frame_idx = config_file["prev_frame_idx"];
-    std::vector<cv::Point2f> prev_frame_kp_pts = {cv::Point2f(51, 88), cv::Point2f(265, 149), cv::Point2f(432, 210), cv::Point2f(437, 164), cv::Point2f(500, 193), cv::Point2f(672, 151), cv::Point2f(726, 136), cv::Point2f(838, 125), cv::Point2f(954, 106)};
-    std::vector<cv::Point2f> curr_frame_kp_pts = {cv::Point2f(37, 85), cv::Point2f(260, 148), cv::Point2f(431, 211), cv::Point2f(439, 164), cv::Point2f(502, 193), cv::Point2f(677, 151), cv::Point2f(733, 136), cv::Point2f(851, 123), cv::Point2f(972, 104)};
-    // std::vector<cv::Point2f> prev_frame_kp_pts = matches_vec[prev_frame_idx];
-    // std::vector<cv::Point2f> curr_frame_kp_pts = matches_vec[prev_frame_idx + 1];
+    std::vector<cv::Point2f> prev_frame_kp_pts = matches_vec[prev_frame_idx];
+    std::vector<cv::Point2f> curr_frame_kp_pts = matches_vec[prev_frame_idx + 1];
 
     cv::Mat mask;
-    cv::Mat essential_mat = cv::findEssentialMat(curr_frame_kp_pts, prev_frame_kp_pts, intrinsic, cv::RANSAC, 0.999, 1.0, mask);
+    cv::Mat essential_mat = cv::findEssentialMat(curr_frame_kp_pts, prev_frame_kp_pts, intrinsic, cv::RANSAC, 0.999, 0.3, mask);
 
-    int essential_inlier = 0;
-    for (int i = 0; i < 10; i++) {
-        if (mask.at<unsigned char>(i) == 1) {
-            essential_inlier++;
-        }
-    }
+    int essential_inlier = countMask(mask);
     std::cout << "essential inlier: " << essential_inlier << std::endl;
 
     // draw keypoints
@@ -635,6 +765,9 @@ int main(int argc, char** argv) {
     cv::Mat R, t;
     cv::recoverPose(essential_mat, curr_frame_kp_pts, prev_frame_kp_pts, intrinsic, R, t, mask);
     // cv::recoverPose(essential_mat, image1_kp_pts, image0_kp_pts, intrinsic, R, t, mask);
+
+    int pose_inlier = countMask(mask);
+    std::cout << "pose inlier: " << pose_inlier << std::endl;
 
     Eigen::Matrix3d rotation_mat;
     Eigen::Vector3d translation_mat;
@@ -648,14 +781,14 @@ int main(int argc, char** argv) {
 
     //**========== 4. Triangulation ==========**//
     std::vector<Eigen::Vector3d> landmarks;
-    triangulate2(intrinsic, prev_frame_kp_pts, curr_frame_kp_pts, relative_pose, mask, landmarks);
-    // triangulate2(intrinsic, frame1_kp_pts_test, frame2_kp_pts_test, relative_pose, landmarks);
+    // triangulate2(intrinsic, prev_frame_kp_pts, curr_frame_kp_pts, relative_pose, mask, landmarks);
+    triangulate2(intrinsic, frame1_kp_pts_test, frame2_kp_pts_test, relative_pose, landmarks);
     // triangulate2(intrinsic, image0_kp_pts, image1_kp_pts, relative_pose, landmarks);
 
     // calculate reprojection error & save the images
     double reproj_error = calcReprojectionError(intrinsic, p_id, prev_image, prev_frame_kp_pts, c_id, curr_image, curr_frame_kp_pts, mask, relative_pose, landmarks, 10);
     // double reproj_error = calcReprojectionError(intrinsic, p_id, prev_image, image0_kp_pts, c_id, curr_image, image1_kp_pts, mask, relative_pose, landmarks, num_matches);
-    std::cout << "reprojection error: " << reproj_error << std::endl;
+    // std::cout << "reprojection error: " << reproj_error << std::endl;
 
     // Evaluate
     std::vector<Eigen::Isometry3d> gt_poses, aligned_poses;
