@@ -518,10 +518,14 @@ void displayFramesAndLandmarks(const std::vector<Eigen::Isometry3d> &est_poses, 
 
 void loadGT(std::string gt_path, int prev_frame_id, std::vector<Eigen::Isometry3d> &gt_poses) {
     std::ifstream gt_poses_file(gt_path);
+    double time_stamp;
     double r11, r12, r13, r21, r22, r23, r31, r32, r33, t1, t2, t3;
+    double qw, qx, qy, qz;
+
     std::string line;
 
-    for (int l = 0; l < prev_frame_id; l++) {
+    // for (int l = 0; l < prev_frame_id; l++) {
+    for (int l = 0; l < 3; l++) {
         std::getline(gt_poses_file, line);
     }
 
@@ -529,28 +533,37 @@ void loadGT(std::string gt_path, int prev_frame_id, std::vector<Eigen::Isometry3
         std::getline(gt_poses_file, line);
         std::stringstream ssline(line);
 
-        // KITTI format
-        ssline
-            >> r11 >> r12 >> r13 >> t1
-            >> r21 >> r22 >> r23 >> t2
-            >> r31 >> r32 >> r33 >> t3;
+        // // KITTI format
+        // ssline
+        //     >> r11 >> r12 >> r13 >> t1
+        //     >> r21 >> r22 >> r23 >> t2
+        //     >> r31 >> r32 >> r33 >> t3;
 
         // std::cout << "gt_pose[" << prev_frame_id + i << "]: "
         //             << r11 << " " << r12 << " " << r13 << " " << t1
         //             << r21 << " " << r22 << " " << r23 << " " << t2
         //             << r31 << " " << r32 << " " << r33 << " " << t3 << std::endl;
 
-        Eigen::Matrix3d rotation_mat;
-        rotation_mat << r11, r12, r13,
-                        r21, r22, r23,
-                        r31, r32, r33;
+        // TUM format
+        ssline >> time_stamp
+                >> t1 >> t2 >> t3
+                >> qx >> qy >> qz >> qw;
+
+        // Eigen::Matrix3d rotation_mat;
+        // rotation_mat << r11, r12, r13,
+        //                 r21, r22, r23,
+        //                 r31, r32, r33;
+        Eigen::Quaterniond quaternion(qw, qx, qy, qz);
+        Eigen::Matrix3d rotation_mat(quaternion);
+
         Eigen::Vector3d translation_mat;
         translation_mat << t1, t2, t3;
 
-        Eigen::Isometry3d gt_pose;
+        Eigen::Isometry3d gt_pose = Eigen::Isometry3d::Identity();
         gt_pose.linear() = rotation_mat;
         gt_pose.translation() = translation_mat;
 
+        std::cout << "gt_pose: \n" << gt_pose.matrix() << std::endl;
         gt_poses.push_back(gt_pose);
     }
 }
@@ -725,15 +738,24 @@ int main(int argc, char** argv) {
     int c_id = std::stoi(curr_id.substr(curr_id.length() - 10, 6));
 
     //**========== 2. Feature matching ==========**//
+
     // frame0
     // std::vector<cv::Point2f> frame0_kp_pts_test = {cv::Point2f(280, 148),cv::Point2f(344, 205), cv::Point2f(440, 203), cv::Point2f(487, 191), cv::Point2f(640, 123), cv::Point2f(808, 126), cv::Point2f(917, 111), cv::Point2f(908, 295), cv::Point2f(771, 157), cv::Point2f(870, 155)};
     // std::vector<cv::Point2f> frame0_kp_pts_test = {cv::Point2f(89, 92), cv::Point2f(280, 148), cv::Point2f(437, 204), cv::Point2f(434, 161), cv::Point2f(495, 188), cv::Point2f(660, 150), cv::Point2f(709, 136), cv::Point2f(808, 127), cv::Point2f(913, 110), cv::Point2f(899, 294)};
-    std::vector<cv::Point2f> frame0_kp_pts_test = {cv::Point2f(89.0, 92.0), cv::Point2f(279.65207, 147.67671), cv::Point2f(440.3918, 203.43727), cv::Point2f(434.0, 161.0), cv::Point2f(486.80063, 190.52914), cv::Point2f(661.3766, 148.82133), cv::Point2f(709.0, 136.0), cv::Point2f(807.58307, 125.778046), cv::Point2f(916.523, 110.59789), cv::Point2f(907.6637, 294.75223)};
+    // subpixel, 기본 10개
+    // std::vector<cv::Point2f> frame0_kp_pts_test = {cv::Point2f(89.0, 92.0), cv::Point2f(279.65207, 147.67671), cv::Point2f(440.3918, 203.43727), cv::Point2f(434.0, 161.0), cv::Point2f(486.80063, 190.52914), cv::Point2f(661.3766, 148.82133), cv::Point2f(709.0, 136.0), cv::Point2f(807.58307, 125.778046), cv::Point2f(916.523, 110.59789), cv::Point2f(907.6637, 294.75223)};
+    // tum checkerboard, 63개 (.409720.png)
+    std::vector<cv::Point2f> frame0_kp_pts_test = {cv::Point2f(185.98361, 255.33424), cv::Point2f(199.0621, 257.06512), cv::Point2f(211.93787, 258.88757), cv::Point2f(225.30211, 260.8278), cv::Point2f(238.0471, 262.44495), cv::Point2f(251.32112, 264.19113), cv::Point2f(263.93756, 265.82367), cv::Point2f(277.21017, 267.4266), cv::Point2f(289.7167, 269.32452), cv::Point2f(183.60417, 268.46786), cv::Point2f(196.75133, 270.04303), cv::Point2f(210.08305, 271.65692), cv::Point2f(223.33095, 273.50418), cv::Point2f(236.30656, 275.05783), cv::Point2f(249.50627, 276.86057), cv::Point2f(262.3463, 278.86392), cv::Point2f(275.50507, 280.47092), cv::Point2f(288.29028, 282.06607), cv::Point2f(181.45612, 281.2323), cv::Point2f(194.626, 282.87787), cv::Point2f(207.89014, 284.67996), cv::Point2f(221.0085, 286.65448), cv::Point2f(233.89561, 288.1843), cv::Point2f(247.44759, 289.8412), cv::Point2f(260.40274, 291.54437), cv::Point2f(273.57608, 293.13394), cv::Point2f(286.5793, 294.89896), cv::Point2f(178.94438, 294.63147), cv::Point2f(192.10973, 296.19675), cv::Point2f(205.64519, 297.79102), cv::Point2f(218.89854, 299.5839), cv::Point2f(232.19884, 301.0378), cv::Point2f(245.59622, 302.8427), cv::Point2f(258.5278, 304.77774), cv::Point2f(271.6318, 306.38046), cv::Point2f(284.8339, 308.03354), cv::Point2f(176.39893, 307.6902), cv::Point2f(190.0887, 309.26962), cv::Point2f(203.64032, 311.12424), cv::Point2f(216.75804, 312.74728), cv::Point2f(229.92258, 314.5272), cv::Point2f(243.43706, 316.25223), cv::Point2f(256.5954, 317.77914), cv::Point2f(269.90576, 319.37866), cv::Point2f(283.29272, 321.0969), cv::Point2f(174.2677, 320.8919), cv::Point2f(187.97784, 322.7443), cv::Point2f(201.19373, 324.6455), cv::Point2f(214.4658, 326.1613), cv::Point2f(228.03183, 327.8519), cv::Point2f(241.62836, 329.47943), cv::Point2f(254.76276, 330.86276), cv::Point2f(267.80664, 332.7646), cv::Point2f(281.32922, 334.5889), cv::Point2f(172.07285, 334.64755), cv::Point2f(185.34409, 336.56198), cv::Point2f(198.8366, 338.05148), cv::Point2f(212.45972, 339.69293), cv::Point2f(225.9317, 341.32623), cv::Point2f(239.38484, 342.8262), cv::Point2f(252.78525, 344.6163), cv::Point2f(266.17078, 346.4669), cv::Point2f(279.53818, 347.9511)};
+    // std::vector<cv::Point2f> frame0_kp_pts_test = {cv::Point2f(186, 255), cv::Point2f(199, 257), cv::Point2f(212, 259), cv::Point2f(225, 261), cv::Point2f(238, 262), cv::Point2f(251, 264), cv::Point2f(264, 266), cv::Point2f(277, 267), cv::Point2f(290, 269), cv::Point2f(184, 268), cv::Point2f(197, 270), cv::Point2f(210, 272), cv::Point2f(223, 274), cv::Point2f(236, 275), cv::Point2f(250, 277), cv::Point2f(262, 279), cv::Point2f(276, 280), cv::Point2f(288, 282), cv::Point2f(181, 281), cv::Point2f(195, 283), cv::Point2f(208, 285), cv::Point2f(221, 287), cv::Point2f(234, 288), cv::Point2f(247, 290), cv::Point2f(260, 292), cv::Point2f(274, 293), cv::Point2f(287, 295), cv::Point2f(179, 295), cv::Point2f(192, 296), cv::Point2f(206, 298), cv::Point2f(219, 300), cv::Point2f(232, 301), cv::Point2f(246, 303), cv::Point2f(259, 305), cv::Point2f(272, 306), cv::Point2f(285, 308), cv::Point2f(176, 308), cv::Point2f(190, 309), cv::Point2f(204, 311), cv::Point2f(217, 313), cv::Point2f(230, 315), cv::Point2f(243, 316), cv::Point2f(257, 318), cv::Point2f(270, 319), cv::Point2f(283, 321), cv::Point2f(174, 321), cv::Point2f(188, 323), cv::Point2f(201, 325), cv::Point2f(214, 326), cv::Point2f(228, 328), cv::Point2f(242, 329), cv::Point2f(255, 331), cv::Point2f(268, 333), cv::Point2f(281, 335), cv::Point2f(172, 335), cv::Point2f(185, 337), cv::Point2f(199, 338), cv::Point2f(212, 340), cv::Point2f(226, 341), cv::Point2f(239, 343), cv::Point2f(253, 345), cv::Point2f(266, 346), cv::Point2f(280, 348)};
 
     // frame1
     // std::vector<cv::Point2f> frame1_kp_pts_test = {cv::Point2f(275, 150),cv::Point2f(340, 208), cv::Point2f(439, 206), cv::Point2f(488, 193), cv::Point2f(642, 124), cv::Point2f(816, 125), cv::Point2f(929, 109), cv::Point2f(943, 308), cv::Point2f(779, 158), cv::Point2f(881, 155)};
     // std::vector<cv::Point2f> frame1_kp_pts_test = {cv::Point2f(77, 92), cv::Point2f(275, 149), cv::Point2f(435, 207), cv::Point2f(435, 163), cv::Point2f(496, 190), cv::Point2f(664, 150), cv::Point2f(714, 136), cv::Point2f(817, 126), cv::Point2f(925, 109), cv::Point2f(933, 307)};
-    std::vector<cv::Point2f> frame1_kp_pts_test = {cv::Point2f(76.435524, 92.402176), cv::Point2f(274.63477, 149.50064), cv::Point2f(439.3174, 206.34424), cv::Point2f(435.0, 163.0), cv::Point2f(487.71252, 192.5296), cv::Point2f(664.4662, 149.73691), cv::Point2f(714.8803, 135.63571), cv::Point2f(816.14087, 125.12716), cv::Point2f(928.7381, 109.08112), cv::Point2f(942.7255, 307.60168)};
+    // subpixel, 기본 10개
+    // std::vector<cv::Point2f> frame1_kp_pts_test = {cv::Point2f(76.435524, 92.402176), cv::Point2f(274.63477, 149.50064), cv::Point2f(439.3174, 206.34424), cv::Point2f(435.0, 163.0), cv::Point2f(487.71252, 192.5296), cv::Point2f(664.4662, 149.73691), cv::Point2f(714.8803, 135.63571), cv::Point2f(816.14087, 125.12716), cv::Point2f(928.7381, 109.08112), cv::Point2f(942.7255, 307.60168)};
+    // tum checkerboard, 63개 (.445969.png)
+    std::vector<cv::Point2f> frame1_kp_pts_test = {cv::Point2f(188.50336, 254.28859), cv::Point2f(201.61862, 256.00037), cv::Point2f(214.82784, 257.61743), cv::Point2f(227.99135, 259.2137), cv::Point2f(240.9269, 260.97116), cv::Point2f(253.95947, 262.65988), cv::Point2f(266.96304, 264.2749), cv::Point2f(279.88977, 265.71893), cv::Point2f(292.7736, 267.5034), cv::Point2f(186.67285, 266.95377), cv::Point2f(199.6509, 268.7468), cv::Point2f(212.82109, 270.5306), cv::Point2f(225.98372, 272.1499), cv::Point2f(239.08856, 273.56796), cv::Point2f(252.16556, 275.35953), cv::Point2f(265.0837, 277.1004), cv::Point2f(278.1214, 278.60114), cv::Point2f(291.15082, 280.2634), cv::Point2f(184.32774, 280.10443), cv::Point2f(197.61137, 281.6256), cv::Point2f(210.93588, 283.37775), cv::Point2f(224.28981, 284.8726), cv::Point2f(237.33499, 286.56235), cv::Point2f(250.51984, 288.32553), cv::Point2f(263.5544, 289.79327), cv::Point2f(276.68262, 291.35413), cv::Point2f(289.65073, 293.04395), cv::Point2f(182.41861, 292.95807), cv::Point2f(195.58974, 294.77478), cv::Point2f(208.92451, 296.49942), cv::Point2f(222.20618, 298.08133), cv::Point2f(235.44948, 299.5277), cv::Point2f(248.69556, 301.25595), cv::Point2f(261.8787, 302.814), cv::Point2f(275.05862, 304.41858), cv::Point2f(288.23535, 306.05096), cv::Point2f(180.09937, 306.39767), cv::Point2f(193.39595, 308.14496), cv::Point2f(206.92966, 309.59625), cv::Point2f(220.48015, 311.04932), cv::Point2f(233.58061, 312.8338), cv::Point2f(246.79042, 314.53445), cv::Point2f(260.04233, 316.07474), cv::Point2f(273.36606, 317.4822), cv::Point2f(286.52466, 319.16614), cv::Point2f(177.803, 319.75412), cv::Point2f(191.4469, 321.35947), cv::Point2f(204.9484, 322.82416), cv::Point2f(218.24597, 324.51074), cv::Point2f(231.55283, 326.2864), cv::Point2f(245.17305, 327.6438), cv::Point2f(258.54037, 329.15945), cv::Point2f(271.64615, 330.8213), cv::Point2f(284.77243, 332.54663), cv::Point2f(175.71579, 333.29483), cv::Point2f(189.30305, 334.76346), cv::Point2f(202.7548, 336.44424), cv::Point2f(216.32068, 338.13422), cv::Point2f(229.76256, 339.5763), cv::Point2f(243.20312, 341.05753), cv::Point2f(256.59732, 342.72125), cv::Point2f(269.98282, 344.40897), cv::Point2f(283.34937, 345.8332)};
+    // std::vector<cv::Point2f> frame1_kp_pts_test = {cv::Point2f(189, 254), cv::Point2f(202, 256), cv::Point2f(215, 258), cv::Point2f(228, 259), cv::Point2f(241, 261), cv::Point2f(254, 263), cv::Point2f(267, 264), cv::Point2f(280, 266), cv::Point2f(293, 268), cv::Point2f(187, 267), cv::Point2f(200, 269), cv::Point2f(213, 271), cv::Point2f(226, 272), cv::Point2f(239, 274), cv::Point2f(252, 275), cv::Point2f(265, 277), cv::Point2f(278, 279), cv::Point2f(291, 280), cv::Point2f(184, 280), cv::Point2f(198, 282), cv::Point2f(211, 283), cv::Point2f(224, 285), cv::Point2f(237, 287), cv::Point2f(251, 288), cv::Point2f(264, 290), cv::Point2f(277, 291), cv::Point2f(290, 293), cv::Point2f(182, 293), cv::Point2f(196, 295), cv::Point2f(209, 296), cv::Point2f(222, 298), cv::Point2f(235, 300), cv::Point2f(249, 301), cv::Point2f(262, 303), cv::Point2f(275, 304), cv::Point2f(288, 306), cv::Point2f(180, 306), cv::Point2f(193, 308), cv::Point2f(207, 310), cv::Point2f(220, 311), cv::Point2f(234, 313), cv::Point2f(247, 315), cv::Point2f(260, 316), cv::Point2f(273, 317), cv::Point2f(287, 319), cv::Point2f(178, 320), cv::Point2f(191, 321), cv::Point2f(205, 323), cv::Point2f(218, 325), cv::Point2f(232, 326), cv::Point2f(245, 328), cv::Point2f(259, 329), cv::Point2f(272, 331), cv::Point2f(285, 333), cv::Point2f(176, 333), cv::Point2f(189, 335), cv::Point2f(203, 336), cv::Point2f(216, 338), cv::Point2f(230, 340), cv::Point2f(243, 341), cv::Point2f(257, 343), cv::Point2f(270, 344), cv::Point2f(283, 346)};
 
     // frame2
     std::vector<cv::Point2f> frame2_kp_pts_test = {cv::Point2f(65, 90), cv::Point2f(270, 149), cv::Point2f(434, 208), cv::Point2f(436, 163), cv::Point2f(498, 191), cv::Point2f(668, 151), cv::Point2f(720, 136), cv::Point2f(827, 125), cv::Point2f(939, 108), cv::Point2f(977, 324)};
@@ -750,8 +772,19 @@ int main(int argc, char** argv) {
     std::vector<cv::Point2f> prev_frame_kp_pts = matches_vec[prev_frame_idx];
     std::vector<cv::Point2f> curr_frame_kp_pts = matches_vec[prev_frame_idx + 1];
 
+    std::vector<cv::Point2f> prev_frame_kp_pts_temp;
+    std::vector<cv::Point2f> curr_frame_kp_pts_temp;
+    for (int i = 0; i < prev_frame_kp_pts.size(); i++) {
+        if (i % 2 == 0) {
+            prev_frame_kp_pts_temp.push_back(prev_frame_kp_pts[i]);
+            curr_frame_kp_pts_temp.push_back(curr_frame_kp_pts[i]);
+        }
+    }
+    prev_frame_kp_pts = prev_frame_kp_pts_temp;
+    curr_frame_kp_pts = curr_frame_kp_pts_temp;
+
     cv::Mat mask;
-    cv::Mat essential_mat = cv::findEssentialMat(curr_frame_kp_pts, prev_frame_kp_pts, intrinsic, cv::RANSAC, 0.999, 0.3, mask);
+    cv::Mat essential_mat = cv::findEssentialMat(curr_frame_kp_pts, prev_frame_kp_pts, intrinsic, cv::RANSAC, 0.999, 1.0, mask);
 
     int essential_inlier = countMask(mask);
     std::cout << "essential inlier: " << essential_inlier << std::endl;
@@ -781,12 +814,12 @@ int main(int argc, char** argv) {
 
     //**========== 4. Triangulation ==========**//
     std::vector<Eigen::Vector3d> landmarks;
-    // triangulate2(intrinsic, prev_frame_kp_pts, curr_frame_kp_pts, relative_pose, mask, landmarks);
-    triangulate2(intrinsic, frame1_kp_pts_test, frame2_kp_pts_test, relative_pose, landmarks);
+    triangulate2(intrinsic, prev_frame_kp_pts, curr_frame_kp_pts, relative_pose, mask, landmarks);
+    // triangulate2(intrinsic, frame1_kp_pts_test, frame2_kp_pts_test, relative_pose, landmarks);
     // triangulate2(intrinsic, image0_kp_pts, image1_kp_pts, relative_pose, landmarks);
 
     // calculate reprojection error & save the images
-    double reproj_error = calcReprojectionError(intrinsic, p_id, prev_image, prev_frame_kp_pts, c_id, curr_image, curr_frame_kp_pts, mask, relative_pose, landmarks, 10);
+    double reproj_error = calcReprojectionError(intrinsic, p_id, prev_image, prev_frame_kp_pts, c_id, curr_image, curr_frame_kp_pts, mask, relative_pose, landmarks, 63);
     // double reproj_error = calcReprojectionError(intrinsic, p_id, prev_image, image0_kp_pts, c_id, curr_image, image1_kp_pts, mask, relative_pose, landmarks, num_matches);
     // std::cout << "reprojection error: " << reproj_error << std::endl;
 
