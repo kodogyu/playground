@@ -14,6 +14,7 @@ FEATURE_IMAGE_PATCH_WINDOW_NAME = "image patch"
 PREV_IMAGE_WINDOW_NAME = "previous image"
 PREV_IMAGE_PATCH_WINDOW_NAME = "previous image lens"
 IMAGE_SCALE = 1
+GOAL_FEATURE_COUNT = 63
 
 # function to display the image patch
 # around the points clicked on the image
@@ -66,21 +67,21 @@ def drawImagePatch(window_name, image, center_x, center_y):
 
     cv2.imshow(window_name, resized_image_patch)
 
-def runOnce(prev_image_idx, prev_image, curr_image):
+def runOnce(prev_image_idx, prev_image):
     # convert color
     prev_image_gray = cv2.cvtColor(prev_image, cv2.COLOR_BGR2GRAY)
-    curr_image_gray = cv2.cvtColor(curr_image, cv2.COLOR_BGR2GRAY)
+    # curr_image_gray = cv2.cvtColor(curr_image, cv2.COLOR_BGR2GRAY)
 
-    # feature extraction
-    orb = cv2.ORB_create(3000, 1.2, 8, 31, 0, 2, cv2.ORB_HARRIS_SCORE, 31, 25)
+    # # feature extraction
+    # orb = cv2.ORB_create(3000, 1.2, 8, 31, 0, 2, cv2.ORB_HARRIS_SCORE, 31, 25)
 
-    prev_kp, prev_des = orb.detectAndCompute(prev_image_gray, None)
-    curr_kp1, curr_des = orb.detectAndCompute(curr_image_gray, None)
+    # prev_kp, prev_des = orb.detectAndCompute(prev_image_gray, None)
+    # curr_kp1, curr_des = orb.detectAndCompute(curr_image_gray, None)
 
-    # feature matching
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-    matches = bf.match(prev_des, curr_des)
-    matches = sorted(matches, key=lambda x: x.distance)
+    # # feature matching
+    # bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+    # matches = bf.match(prev_des, curr_des)
+    # matches = sorted(matches, key=lambda x: x.distance)
 
     # # mark matches
     # for i in matches[:30]:
@@ -98,8 +99,7 @@ def runOnce(prev_image_idx, prev_image, curr_image):
 
     cv2.setMouseCallback(FEATURE_WINDOW_NAME, click_event_feature_win, prev_image_gray)
 
-    global CURRENT_MAX_FEATURE_IDX, STARTING_FEATURE_IDX
-    goal_feature_cnt = 10
+    global CURRENT_MAX_FEATURE_IDX, STARTING_FEATURE_IDX, GOAL_FEATURE_COUNT
     feature_idx = STARTING_FEATURE_IDX
     feature_dict = {}
     input_key = 0
@@ -113,7 +113,7 @@ def runOnce(prev_image_idx, prev_image, curr_image):
     # '위'      82
     # '오른쪽'  83
     # '아래'    84
-    while len(feature_dict) < goal_feature_cnt:
+    while len(feature_dict) < GOAL_FEATURE_COUNT:
         input_key = cv2.waitKey(0)
         print(f"Pressed [{input_key}, '{chr(input_key)}']")
 
@@ -125,7 +125,7 @@ def runOnce(prev_image_idx, prev_image, curr_image):
 
             print(f"saved feature point: {CORNER_POINT}")
             feature_dict[feature_idx] = CORNER_POINT
-            print(f"[{feature_idx}] [feature count / goal feature count] : [{len(feature_dict)}/{goal_feature_cnt}]")
+            print(f"[{feature_idx}] [feature count / goal feature count] : [{len(feature_dict)}/{GOAL_FEATURE_COUNT}]")
 
             feature_idx += 1
             updateFeatureWindow(prev_image, feature_dict)
@@ -200,13 +200,19 @@ def displayPrevImage(frame_feature_dict, prev_image):
 if __name__ == "__main__":
     # file paths
     file_list = []
-    image_dir = "/home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/"
+    # image_dir = "/home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/"
     # image_dir = "/home/kodogyu/shared_folder_local/kitti_100_frames/"
+    image_dir = "/home/kodogyu/Datasets/TUM/rgbd_dataset_freiburg3_checkerboard_large/rgb/"
 
-    total_frames = 100
-    for frame_idx in range(total_frames):
-        file = image_dir + f'{frame_idx:06}.png'
-        file_list.append(file)
+    total_frames = 2
+    # for frame_idx in range(total_frames):
+    #     file = image_dir + f'{frame_idx:06}.png'
+    #     file_list.append(file)
+
+    tum_img0 = "1341835195.445969.png"
+    tum_img1 = "1341835195.477897.png"
+    file_list.append(image_dir + tum_img0)
+    file_list.append(image_dir + tum_img1)
 
     # write feature information
     fieldnames = [i for i in range(500)]
@@ -219,9 +225,8 @@ if __name__ == "__main__":
     frame_feature_dict_list = []
     for i in range(total_frames):
         prev_image = cv2.imread(file_list[i])
-        curr_image = cv2.imread(file_list[i + 1])
 
-        frame_feature_dict = runOnce(i, prev_image, curr_image)
+        frame_feature_dict = runOnce(i, prev_image)
         if (frame_feature_dict == {}):
             break
 
