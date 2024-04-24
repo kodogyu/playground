@@ -113,3 +113,5 @@ target_link_libraries(vo_patch ${OpenCV_LIBS} ${Pangolin_LIBRARIES})
 
 add_executable(vo_lower_bound vo_lower_bound.cpp)
 target_link_libraries(vo_lower_bound ${OpenCV_LIBS} ${Pangolin_LIBRARIES})
+
+add_executable(pose_converter pose_converter.cpp)
