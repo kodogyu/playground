@@ -12,12 +12,19 @@
 # p2: -0.000222
 # k3: -0.029608
 
-# KITTI
-fx: 718.856
-fy: 718.856
-s: 0.0
-cx: 607.1928
-cy: 185.2157
+# # KITTI
+# fx: 718.856
+# fy: 718.856
+# s: 0.0
+# cx: 607.1928
+# cy: 185.2157
+
+# TUM
+fx: 535.4
+fy: 539.2
+s: 0
+cx: 320.1
+cy: 247.6
 
 #========== Visualize ==========#
 display_gt: 1
@@ -29,8 +36,11 @@ display_type: 0
 # # KITTI-360
 # gt_path: /home/kodogyu/Datasets/KITTI-360/data_poses/2013_05_28_drive_0000_sync/cam0_to_world.txt
 
-# KITTI
-gt_path: /home/kodogyu/Datasets/KITTI/dataset/poses/00.txt
+# # KITTI
+# gt_path: /home/kodogyu/Datasets/KITTI/dataset/poses/00.txt
+
+# TUM
+gt_path: /home/kodogyu/Datasets/TUM/rgbd_dataset_freiburg3_checkerboard_large/groundtruth.txt
 
 #========== Feature extraction ==========#
 num_features: 1000
@@ -47,8 +57,10 @@ optimizer_verbose: 0
 #========== VO patch ==========#
 # prev_frame: vo_patch/source_frames/000000.png
 # curr_frame: vo_patch/source_frames/000001.png
-prev_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000000.png
-curr_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000001.png
+# prev_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000000.png
+# curr_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000001.png
+prev_frame: /home/kodogyu/Datasets/TUM/rgbd_dataset_freiburg3_checkerboard_large/rgb/1341835195.545827.png
+curr_frame: /home/kodogyu/Datasets/TUM/rgbd_dataset_freiburg3_checkerboard_large/rgb/1341835195.577840.png
 prev_frame_idx: 0
 
 # # KITTI-360
