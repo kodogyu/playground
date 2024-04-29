@@ -17,6 +17,8 @@ void triangulate2(cv::Mat intrinsic, std::vector<cv::Point2f> img0_kp_pts, std::
 
     prev_proj = camera_intrinsic * prev_proj;
     curr_proj = camera_intrinsic * curr_proj * cam1_pose.inverse().matrix();
+    std::cout << "prev_proj: \n" << prev_proj << std::endl;
+    std::cout << "curr_proj: \n" << curr_proj << std::endl;
 
     for (int i = 0; i < img0_kp_pts.size(); i++) {
         // if (mask.at<unsigned char>(i) != 1) {
@@ -30,9 +32,16 @@ void triangulate2(cv::Mat intrinsic, std::vector<cv::Point2f> img0_kp_pts, std::
         A.row(3) = img1_kp_pts[i].y * curr_proj.row(2) - curr_proj.row(1);
 
         Eigen::JacobiSVD<Eigen::Matrix4d> svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
+        Eigen::Matrix4d svd_U = svd.matrixU();
+        Eigen::Matrix4d svd_S = svd.singularValues().asDiagonal();
+        Eigen::Matrix4d svd_V = svd.matrixV();
+
         Eigen::Vector4d point_3d_homo = svd.matrixV().col(3);
         Eigen::Vector3d point_3d = point_3d_homo.head(3) / point_3d_homo[3];
         landmarks.push_back(point_3d);
+
+        Eigen::Vector4d error = A * point_3d_homo;
+        std::cout << "error: " << error << std::endl;
     }
 }
 
@@ -195,6 +204,55 @@ double calcReprojectionError(cv::Mat &intrinsic,
     return reprojection_error;
 }
 
+
+Eigen::Isometry3d alignPose(const std::vector<Eigen::Isometry3d> &gt_poses, const Eigen::Isometry3d &est_rel_pose) {
+    Eigen::Isometry3d gt_rel_pose = gt_poses[0].inverse() * gt_poses[1];
+
+    Eigen::Isometry3d aligned_est_rel_pose(est_rel_pose);
+    double scale = gt_rel_pose.translation().norm() / est_rel_pose.translation().norm();
+    aligned_est_rel_pose.translation() = est_rel_pose.translation() * scale;
+    // std::cout << "distance before align: " << est_rel_pose.translation().norm() << std::endl;
+    // std::cout << "distance after align: " << aligned_est_rel_pose.translation().norm() << std::endl;
+    // std::cout << "gt distance: " << gt_rel_pose.translation().norm() << std::endl;
+
+    return aligned_est_rel_pose;
+}
+
+std::vector<Eigen::Isometry3d> calcRPE(const std::vector<Eigen::Isometry3d> &gt_poses, const Eigen::Isometry3d &est_rel_pose) {
+    std::vector<Eigen::Isometry3d> rpe_vec;
+
+    Eigen::Isometry3d gt_rel_pose = gt_poses[0].inverse() * gt_poses[1];
+
+    // calculate the relative pose error
+    Eigen::Isometry3d relative_pose_error = gt_rel_pose.inverse() * est_rel_pose;
+    rpe_vec.push_back(relative_pose_error);
+
+    return rpe_vec;
+}
+
+void calcRPE_rt(const std::vector<Eigen::Isometry3d> &gt_poses, const Eigen::Isometry3d &est_rel_pose, double &rpe_rot, double &rpe_trans) {
+    std::vector<Eigen::Isometry3d> rpe_vec = calcRPE(gt_poses, est_rel_pose);
+
+    double acc_trans_error = 0;
+    double acc_theta = 0;
+
+    for (int i = 0; i < rpe_vec.size(); i++) {
+        Eigen::Isometry3d rpe = rpe_vec[i];
+
+        // RPE rotation
+        Eigen::Matrix3d rotation = rpe.rotation();
+        double theta = acos((rotation.trace() - 1) / 2);
+        acc_theta += theta;
+
+        // RPE translation
+        double translation_error = rpe.translation().norm() * rpe.translation().norm();
+        acc_trans_error += translation_error;
+    }
+
+    // mean RPE
+    rpe_rot = acc_theta / double(rpe_vec.size());
+    rpe_trans = sqrt(acc_trans_error / double(rpe_vec.size()));
+}
 
 void loadGT(std::string gt_path, int prev_frame_id, std::vector<Eigen::Isometry3d> &gt_poses) {
     std::ifstream gt_poses_file(gt_path);
@@ -455,28 +513,36 @@ int main() {
     cv::Mat image1 = cv::imread(image1_file, cv::IMREAD_GRAYSCALE);
 
     // feature matches
-    std::vector<cv::Point2f> image0_kp_pts_test = {cv::Point2f(280, 148), cv::Point2f(280, 184), cv::Point2f(352, 149), cv::Point2f(344, 205), cv::Point2f(315, 223), cv::Point2f(392, 216), cv::Point2f(487, 191), cv::Point2f(436, 249), cv::Point2f(499, 263), cv::Point2f(551, 254), cv::Point2f(658, 149), cv::Point2f(655, 173), cv::Point2f(708, 155), cv::Point2f(725, 168), cv::Point2f(771, 157), cv::Point2f(813, 134), cv::Point2f(808, 126), cv::Point2f(870, 155), cv::Point2f(901, 129), cv::Point2f(917, 111), cv::Point2f(937, 126), cv::Point2f(916, 244)};
-    std::vector<cv::Point2f> image1_kp_pts_test = {cv::Point2f(275, 150), cv::Point2f(275, 186), cv::Point2f(350, 151), cv::Point2f(340, 208), cv::Point2f(310, 226), cv::Point2f(387, 219), cv::Point2f(488, 193), cv::Point2f(433, 254), cv::Point2f(496, 269), cv::Point2f(551, 259), cv::Point2f(661, 150), cv::Point2f(658, 174), cv::Point2f(713, 155), cv::Point2f(731, 168), cv::Point2f(779, 158), cv::Point2f(822, 133), cv::Point2f(816, 125), cv::Point2f(881, 155), cv::Point2f(912, 128), cv::Point2f(929, 109), cv::Point2f(949, 125), cv::Point2f(951, 251)};
+    // std::vector<cv::Point2f> image0_kp_pts_test = {cv::Point2f(280, 148), cv::Point2f(280, 184), cv::Point2f(352, 149), cv::Point2f(344, 205), cv::Point2f(315, 223), cv::Point2f(392, 216), cv::Point2f(487, 191), cv::Point2f(436, 249), cv::Point2f(499, 263), cv::Point2f(551, 254), cv::Point2f(658, 149), cv::Point2f(655, 173), cv::Point2f(708, 155), cv::Point2f(725, 168), cv::Point2f(771, 157), cv::Point2f(813, 134), cv::Point2f(808, 126), cv::Point2f(870, 155), cv::Point2f(901, 129), cv::Point2f(917, 111), cv::Point2f(937, 126), cv::Point2f(916, 244)};
+    // std::vector<cv::Point2f> image1_kp_pts_test = {cv::Point2f(275, 150), cv::Point2f(275, 186), cv::Point2f(350, 151), cv::Point2f(340, 208), cv::Point2f(310, 226), cv::Point2f(387, 219), cv::Point2f(488, 193), cv::Point2f(433, 254), cv::Point2f(496, 269), cv::Point2f(551, 259), cv::Point2f(661, 150), cv::Point2f(658, 174), cv::Point2f(713, 155), cv::Point2f(731, 168), cv::Point2f(779, 158), cv::Point2f(822, 133), cv::Point2f(816, 125), cv::Point2f(881, 155), cv::Point2f(912, 128), cv::Point2f(929, 109), cv::Point2f(949, 125), cv::Point2f(951, 251)};
+
+    // 10개, subpixel
+    // std::vector<cv::Point2f> image0_kp_pts_test = {cv::Point2f(89.0, 92.0), cv::Point2f(279.65207, 147.67671), cv::Point2f(440.3918, 203.43727), cv::Point2f(434.0, 161.0), cv::Point2f(486.80063, 190.52914), cv::Point2f(661.3766, 148.82133), cv::Point2f(709.0, 136.0), cv::Point2f(807.58307, 125.778046), cv::Point2f(916.523, 110.59789), cv::Point2f(907.6637, 294.75223)};
+    // std::vector<cv::Point2f> image1_kp_pts_test = {cv::Point2f(76.435524, 92.402176), cv::Point2f(274.63477, 149.50064), cv::Point2f(439.3174, 206.34424), cv::Point2f(435.0, 163.0), cv::Point2f(487.71252, 192.5296), cv::Point2f(664.4662, 149.73691), cv::Point2f(714.8803, 135.63571), cv::Point2f(816.14087, 125.12716), cv::Point2f(928.7381, 109.08112), cv::Point2f(942.7255, 307.60168)};
+
+    // 10개, No subpixel
+    std::vector<cv::Point2f> image0_kp_pts_test = {cv::Point2f(89, 92), cv::Point2f(280, 148), cv::Point2f(437, 204), cv::Point2f(434, 161), cv::Point2f(495, 188), cv::Point2f(660, 150), cv::Point2f(709, 136), cv::Point2f(808, 127), cv::Point2f(913, 110), cv::Point2f(899, 294)};
+    std::vector<cv::Point2f> image1_kp_pts_test = {cv::Point2f(77, 92), cv::Point2f(275, 149), cv::Point2f(435, 207), cv::Point2f(435, 163), cv::Point2f(496, 190), cv::Point2f(664, 150), cv::Point2f(714, 136), cv::Point2f(817, 126), cv::Point2f(925, 109), cv::Point2f(933, 307)};
+
 
     std::vector<cv::Point2f> image0_kp_pts_temp;
     std::vector<cv::Point2f> image1_kp_pts_temp;
 
-    image0_kp_pts_temp = {image0_kp_pts_test[0], image0_kp_pts_test[1], image0_kp_pts_test[3], image0_kp_pts_test[5], image0_kp_pts_test[7], image0_kp_pts_test[10], image0_kp_pts_test[13], image0_kp_pts_test[15], image0_kp_pts_test[18], image0_kp_pts_test[21]};
-    image1_kp_pts_temp = {image1_kp_pts_test[0], image1_kp_pts_test[1], image1_kp_pts_test[3], image1_kp_pts_test[5], image1_kp_pts_test[7], image1_kp_pts_test[10], image1_kp_pts_test[13], image1_kp_pts_test[15], image1_kp_pts_test[18], image1_kp_pts_test[21]};
+    // image0_kp_pts_temp = {image0_kp_pts_test[0], image0_kp_pts_test[1], image0_kp_pts_test[3], image0_kp_pts_test[5], image0_kp_pts_test[7], image0_kp_pts_test[10], image0_kp_pts_test[13], image0_kp_pts_test[15], image0_kp_pts_test[18], image0_kp_pts_test[21]};
+    // image1_kp_pts_temp = {image1_kp_pts_test[0], image1_kp_pts_test[1], image1_kp_pts_test[3], image1_kp_pts_test[5], image1_kp_pts_test[7], image1_kp_pts_test[10], image1_kp_pts_test[13], image1_kp_pts_test[15], image1_kp_pts_test[18], image1_kp_pts_test[21]};
 
     // matrix W
-    // int num_keypoints = image0_kp_pts_test.size();
-    int num_keypoints = image0_kp_pts_temp.size();
+    int num_keypoints = image0_kp_pts_test.size();
     Eigen::MatrixXf W = Eigen::MatrixXf::Zero(num_keypoints, 9);
     // std::cout << "Matrix W:\n" << W.matrix() << std::endl;
 
     // concat points
     Eigen::MatrixXf P(3, num_keypoints), P_prime(3, num_keypoints);
     for (int i = 0; i < num_keypoints; i++) {
-        // Eigen::Vector3f p(image0_kp_pts_test[i].x, image0_kp_pts_test[i].y, 1);
-        // Eigen::Vector3f p_prime(image1_kp_pts_test[i].x, image1_kp_pts_test[i].y, 1);
-        Eigen::Vector3f p(image0_kp_pts_temp[i].x, image0_kp_pts_temp[i].y, 1);
-        Eigen::Vector3f p_prime(image1_kp_pts_temp[i].x, image1_kp_pts_temp[i].y, 1);
+        Eigen::Vector3f p(image0_kp_pts_test[i].x, image0_kp_pts_test[i].y, 1);
+        Eigen::Vector3f p_prime(image1_kp_pts_test[i].x, image1_kp_pts_test[i].y, 1);
+        // Eigen::Vector3f p(image0_kp_pts_temp[i].x, image0_kp_pts_temp[i].y, 1);
+        // Eigen::Vector3f p_prime(image1_kp_pts_temp[i].x, image1_kp_pts_temp[i].y, 1);
 
         P.block<3, 1>(0, i) = p;
         P_prime.block<3, 1>(0, i) = p_prime;
@@ -529,7 +595,7 @@ int main() {
 
         W.block<1, 9>(i, 0) = p_p_prime_vec;
     }
-    // std::cout << "Matrix W:\n" << W.matrix() << std::endl;
+    std::cout << "Matrix W:\n" << W.matrix() << std::endl;
 
     // SVD
     Eigen::JacobiSVD<Eigen::MatrixXf> svd(W, Eigen::ComputeFullU | Eigen::ComputeFullV);
@@ -563,11 +629,19 @@ int main() {
     cv::cvtColor(image1, image1_bgr, cv::COLOR_GRAY2BGR);
 
     num_keypoints = image0_kp_pts_test.size();
+    double epiline0_error, epiline1_error;
+    double ss_epiline0_error = 0, ss_epiline1_error = 0;
     for (int i = 0; i < num_keypoints; i++) {
         Eigen::Vector3f p(image0_kp_pts_test[i].x, image0_kp_pts_test[i].y, 1);
         Eigen::Vector3f p_prime(image1_kp_pts_test[i].x, image1_kp_pts_test[i].y, 1);
         Eigen::Vector3f epiline0 = fundamental_mat * p_prime;
         Eigen::Vector3f epiline1 = fundamental_mat.transpose() * p;
+        epiline0_error = epiline0.transpose() * p;
+        epiline1_error = epiline1.transpose() * p_prime;
+        std::cout << "epiline0 error: " << epiline0_error << std::endl;
+        std::cout << "epiline1 error: " << epiline1_error << std::endl;
+        ss_epiline0_error += epiline0_error * epiline0_error;
+        ss_epiline1_error += epiline1_error * epiline1_error;
         // std::cout << "[" << i << "]" << std::endl;
         // std::cout << "p: " << p.transpose() << std::endl;
         // std::cout << "p-prime: " << p_prime.transpose() << std::endl;
@@ -612,6 +686,8 @@ int main() {
         cv::imshow("image1", image1_bgr);
         cv::waitKey(50);
     }
+    std::cout << "ss epiline0 error: " << ss_epiline0_error << std::endl;
+    std::cout << "ss epiline1 error: " << ss_epiline1_error << std::endl;
     while (cv::waitKey(0) != 27) {}
     cv::destroyAllWindows();
 
@@ -778,10 +854,21 @@ int main() {
     std::cout << "reprojection error: " << reprojection_error << std::endl;
 
 
-    // Display
+    // Evaluate
     std::vector<Eigen::Isometry3d> gt_poses, aligned_poses;
+    double rpe_rot, rpe_trans;
     loadGT("/home/kodogyu/Datasets/KITTI/dataset/poses/00.txt", 0, gt_poses);
+    std::cout << "gt relative translation: \n" << (gt_poses[1] * gt_poses[0].inverse()).translation().matrix() << std::endl;
+    Eigen::Isometry3d aligned_est_pose = alignPose(gt_poses, relative_pose);
+    aligned_poses.push_back(aligned_est_pose);
+    calcRPE_rt(gt_poses, aligned_est_pose, rpe_rot, rpe_trans);
 
+    std::cout << "RPEr: " << rpe_rot << std::endl;
+    std::cout << "RPEt: " << rpe_trans << std::endl;
+
+
+
+    // Display
     displayPoses(gt_poses, poses, aligned_poses);
     displayFramesAndLandmarks(poses_answer, landmarks);
 
