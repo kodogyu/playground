@@ -79,7 +79,8 @@ void triangulate2(cv::Mat intrinsic, std::vector<cv::Point2f> img0_kp_pts, std::
 void triangulate_cv(cv::Mat intrinsic, std::vector<cv::Point2f> img0_kp_pts, std::vector<cv::Point2f> img1_kp_pts, Eigen::Isometry3d &cam1_pose, std::vector<Eigen::Vector3d> &landmarks) {
     cv::Mat P0 = cv::Mat::eye(3, 4, CV_64F);
     cv::Mat P1(3, 4, CV_64F);
-    cv::eigen2cv(cam1_pose.rotation(), P1(cv::Range::all(), cv::Range(0, 3)));
+    Eigen::Matrix3d rotation = cam1_pose.rotation();
+    cv::eigen2cv(rotation, P1(cv::Range::all(), cv::Range(0, 3)));
     cv::eigen2cv(Eigen::Vector3d(cam1_pose.translation()), P1.col(3));
 
     std::cout << "P1: \n" << P1 << std::endl;
@@ -497,6 +498,7 @@ int main(int argc, char** argv) {
                                                     0, 0, 1);
     cv::Mat distortion = (cv::Mat_<double>(5, 1) << config_file["k1"], config_file["k2"], config_file["p1"], config_file["p2"], config_file["k3"]);
     cv::Ptr<cv::ORB> orb = cv::ORB::create(config_file["num_features"], 1.2, 8, 31, 0, 2, cv::ORB::HARRIS_SCORE, 31, 25);
+    cv::Ptr<cv::SIFT> sift = cv::SIFT::create();
 
     int num_matches = config_file["num_matches"];
 
@@ -514,26 +516,32 @@ int main(int argc, char** argv) {
     //**========== 0. Image load ==========**//
     // read images
     cv::Mat prev_image_dist = cv::imread(config_file["prev_frame"], cv::IMREAD_GRAYSCALE);
-    cv::Mat prev_image;
-    cv::undistort(prev_image_dist, prev_image, intrinsic, distortion);
+    cv::Mat prev_image = prev_image_dist.clone();
+    std::cout << "prev_image size: " << prev_image.size << std::endl;
+    // cv::undistort(prev_image_dist, prev_image, intrinsic, distortion);
     std::string prev_id = std::string(config_file["prev_frame"]);
-    int p_id = std::stoi(prev_id.substr(prev_id.length() - 10, 6));
+    // int p_id = std::stoi(prev_id.substr(prev_id.length() - 10, 6));
+    int p_id = 13;
     poses.push_back(Eigen::Isometry3d::Identity());
 
     // new Frame!
     cv::Mat curr_image_dist = cv::imread(config_file["curr_frame"], cv::IMREAD_GRAYSCALE);
-    cv::Mat curr_image;
-    cv::undistort(curr_image_dist, curr_image, intrinsic, distortion);
+    cv::Mat curr_image = curr_image_dist.clone();
+    std::cout << "curr_image size: " << curr_image.size << std::endl;
+    // cv::undistort(curr_image_dist, curr_image, intrinsic, distortion);
     std::string curr_id = std::string(config_file["curr_frame"]);
-    int c_id = std::stoi(curr_id.substr(curr_id.length() - 10, 6));
+    // int c_id = std::stoi(curr_id.substr(curr_id.length() - 10, 6));
+    int c_id = 14;
 
     //**========== 1. Feature extraction ==========**//
     cv::Mat curr_image_descriptors;
     std::vector<cv::KeyPoint> curr_image_keypoints;
     cv::Mat prev_image_descriptors;
     std::vector<cv::KeyPoint> prev_image_keypoints;
-    orb->detectAndCompute(prev_image, cv::Mat(), prev_image_keypoints, prev_image_descriptors);
-    orb->detectAndCompute(curr_image, cv::Mat(), curr_image_keypoints, curr_image_descriptors);
+    // orb->detectAndCompute(prev_image, cv::Mat(), prev_image_keypoints, prev_image_descriptors);
+    // orb->detectAndCompute(curr_image, cv::Mat(), curr_image_keypoints, curr_image_descriptors);
+    sift->detectAndCompute(prev_image, cv::Mat(), prev_image_keypoints, prev_image_descriptors);
+    sift->detectAndCompute(curr_image, cv::Mat(), curr_image_keypoints, curr_image_descriptors);
 
     bool filter_keypoints = static_cast<bool>(static_cast<int>(config_file["filter_keypoints"]));
     if (filter_keypoints) {
@@ -555,30 +563,38 @@ int main(int argc, char** argv) {
 
     //**========== 2. Feature matching ==========**//
     // create a matcher
-    cv::Ptr<cv::DescriptorMatcher> orb_matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::BRUTEFORCE);
+    // cv::Ptr<cv::DescriptorMatcher> orb_matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::BRUTEFORCE);
+    cv::Ptr<cv::BFMatcher> bf_matcher = cv::BFMatcher::create();
 
     // image0 & image1 (matcher matching)
     std::vector<std::vector<cv::DMatch>> image_matches01_vec;
-    std::vector<std::vector<cv::DMatch>> image_matches10_vec;
+    // std::vector<std::vector<cv::DMatch>> image_matches10_vec;
     double des_dist_thresh = config_file["des_dist_thresh"];
-    orb_matcher->knnMatch(prev_image_descriptors, curr_image_descriptors, image_matches01_vec, 2);  // prev -> curr matches
-    orb_matcher->knnMatch(curr_image_descriptors, prev_image_descriptors, image_matches10_vec, 2);  // curr -> prev matches
+    bf_matcher->knnMatch(prev_image_descriptors, curr_image_descriptors, image_matches01_vec, 2);  // prev -> curr matches
+    // orb_matcher->knnMatch(prev_image_descriptors, curr_image_descriptors, image_matches01_vec, 2);  // prev -> curr matches
+    // orb_matcher->knnMatch(curr_image_descriptors, prev_image_descriptors, image_matches10_vec, 2);  // curr -> prev matches
 
     // good matches
     std::vector<cv::DMatch> good_matches;
     for (int i = 0; i < image_matches01_vec.size(); i++) {
-        if (image_matches01_vec[i][0].distance < image_matches01_vec[i][1].distance * des_dist_thresh) {  // prev -> curr match에서 좋은가?
-            int image1_keypoint_idx = image_matches01_vec[i][0].trainIdx;
-            if (image_matches10_vec[image1_keypoint_idx][0].distance < image_matches10_vec[image1_keypoint_idx][1].distance * des_dist_thresh) {  // curr -> prev match에서 좋은가?
-                if (image_matches01_vec[i][0].queryIdx == image_matches10_vec[image1_keypoint_idx][0].trainIdx)
-                    good_matches.push_back(image_matches01_vec[i][0]);
-            }
+        if (image_matches01_vec[i][0].distance < image_matches01_vec[i][1].distance * 0.95) {
+            good_matches.push_back(image_matches01_vec[i][0]);
         }
     }
-    if (num_matches > -1) {
-        std::sort(good_matches.begin(), good_matches.end());
-        good_matches.resize(num_matches);
-    }
+
+    // for (int i = 0; i < image_matches01_vec.size(); i++) {
+    //     if (image_matches01_vec[i][0].distance < image_matches01_vec[i][1].distance * des_dist_thresh) {  // prev -> curr match에서 좋은가?
+    //         int image1_keypoint_idx = image_matches01_vec[i][0].trainIdx;
+    //         if (image_matches10_vec[image1_keypoint_idx][0].distance < image_matches10_vec[image1_keypoint_idx][1].distance * des_dist_thresh) {  // curr -> prev match에서 좋은가?
+    //             if (image_matches01_vec[i][0].queryIdx == image_matches10_vec[image1_keypoint_idx][0].trainIdx)
+    //                 good_matches.push_back(image_matches01_vec[i][0]);
+    //         }
+    //     }
+    // }
+    // if (num_matches > -1) {
+    //     std::sort(good_matches.begin(), good_matches.end());
+    //     good_matches.resize(num_matches);
+    // }
 
     std::cout << "original features for image" + std::to_string(p_id) + "&" + std::to_string(c_id) + ": " << image_matches01_vec.size() << std::endl;
     std::cout << "good features for image" + std::to_string(p_id) + "&" + std::to_string(c_id) + ": " << good_matches.size() << std::endl;
@@ -615,12 +631,13 @@ int main(int argc, char** argv) {
     // std::vector<cv::Point2f> frame4_kp_pts_test = {cv::Point2f(37, 85), cv::Point2f(260, 148), cv::Point2f(431, 211), cv::Point2f(439, 164), cv::Point2f(502, 193), cv::Point2f(677, 151), cv::Point2f(733, 136), cv::Point2f(851, 123), cv::Point2f(972, 104),    cv::Point2f(653, 124)};
 
     // draw keypoints
-    // drawKeypoints(p_id, prev_image, frame1_kp_pts_test, c_id, curr_image, frame2_kp_pts_test, 10);
-    drawKeypoints(p_id, prev_image, image0_kp_pts, c_id, curr_image, image1_kp_pts, num_matches);
+    // drawKeypoints(p_id, prev_image, image0_kp_pts, c_id, curr_image, image1_kp_pts, num_matches);
+    drawKeypoints(p_id, prev_image, image0_kp_pts, c_id, curr_image, image1_kp_pts, good_matches.size());
 
     cv::Mat mask;
     // cv::Mat essential_mat = cv::findEssentialMat(frame2_kp_pts_test, frame1_kp_pts_test, intrinsic, cv::RANSAC, 0.999, 1.0, mask);
-    cv::Mat essential_mat = cv::findEssentialMat(image1_kp_pts, image0_kp_pts, intrinsic, cv::RANSAC, 0.999, 1.0, mask);
+    cv::Mat essential_mat = cv::findEssentialMat(image1_kp_pts, image0_kp_pts, intrinsic, cv::RANSAC, 0.999, 1.0, 500, mask);
+    std::cout << "essential matrix: \n" << essential_mat << std::endl;
 
     int essential_inlier = 0;
     for (int i = 0; i < mask.rows; i++) {
