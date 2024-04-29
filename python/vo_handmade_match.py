@@ -200,19 +200,19 @@ def displayPrevImage(frame_feature_dict, prev_image):
 if __name__ == "__main__":
     # file paths
     file_list = []
-    # image_dir = "/home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/"
+    image_dir = "/home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/"
     # image_dir = "/home/kodogyu/shared_folder_local/kitti_100_frames/"
-    image_dir = "/home/kodogyu/Datasets/TUM/rgbd_dataset_freiburg3_checkerboard_large/rgb/"
+    # image_dir = "/home/kodogyu/Datasets/TUM/rgbd_dataset_freiburg3_checkerboard_large/rgb/"
 
     total_frames = 2
-    # for frame_idx in range(total_frames):
-    #     file = image_dir + f'{frame_idx:06}.png'
-    #     file_list.append(file)
+    for frame_idx in range(total_frames):
+        file = image_dir + f'{frame_idx:06}.png'
+        file_list.append(file)
 
-    tum_img0 = "1341835195.445969.png"
-    tum_img1 = "1341835195.477897.png"
-    file_list.append(image_dir + tum_img0)
-    file_list.append(image_dir + tum_img1)
+    # tum_img0 = "1341835195.445969.png"
+    # tum_img1 = "1341835195.477897.png"
+    # file_list.append(image_dir + tum_img0)
+    # file_list.append(image_dir + tum_img1)
 
     # write feature information
     fieldnames = [i for i in range(500)]
