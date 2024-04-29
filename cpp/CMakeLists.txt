@@ -4,9 +4,10 @@ cmake_minimum_required(VERSION 3.16)
 # set(CMAKE_CXX_COMPILER "/usr/bin/g++-11")
 set(CMAKE_CXX_FLAGS "-std=c++17")
 set(CMAKE_BUILD_TYPE Debug)
+# list(APPEND CMAKE_MODULE_PATH "/usr/local/include/eigen-3.4.0/cmake")
 
 ##=========================DEPENDENCIES=========================##
-find_package(Eigen3 REQUIRED)
+find_package(Eigen3 3.4 REQUIRED)
 find_package(GTSAM REQUIRED)
 find_package(OpenCV 4 REQUIRED)   # -DOpenCV_DIR=/home/kodogyu/opencv/build
 find_package(Sophus REQUIRED)
@@ -15,6 +16,7 @@ find_package(Pangolin 0.8 REQUIRED)
 
 message(STATUS "opencv version: ${OpenCV_VERSION}")
 message(STATUS "gtsam path: ${GTSAM_DIR}")
+message(STATUS "eigen path: ${Eigen3_DIR}")
 
 include_directories(
     ${EIGEN3_INCLUDE_DIRS}
@@ -35,6 +37,7 @@ add_executable(chrono_measure_time chrono_measure_time.cpp)
 add_executable(basic_filesystem basic_filesystem.cpp)
 add_executable(basic_vector basic_vector.cpp)
 add_executable(basic_map basic_map.cpp)
+add_executable(basic_random basic_random.cpp)
 # boost
 add_executable(boost_format boost_format.cpp)
 # eigen
@@ -93,6 +96,9 @@ target_link_libraries(opencv_cv_fileStorage ${OpenCV_LIBS})
 add_executable(opencv_fisheye_camera opencv_fisheye_camera.cpp)
 target_link_libraries(opencv_fisheye_camera ${OpenCV_LIBS})
 
+add_executable(new new.cpp)
+target_link_libraries(new ${OpenCV_LIBS})
+
 # Sophus files
 add_executable(sophus_basic sophus_basic.cpp)
 target_link_libraries(sophus_basic Sophus::Sophus)
@@ -112,6 +118,10 @@ add_executable(vo_patch vo_patch.cpp)
 target_link_libraries(vo_patch ${OpenCV_LIBS} ${Pangolin_LIBRARIES})
 
 add_executable(vo_lower_bound vo_lower_bound.cpp)
-target_link_libraries(vo_lower_bound ${OpenCV_LIBS} ${Pangolin_LIBRARIES})
+target_link_libraries(vo_lower_bound ${OpenCV_LIBS} ${Pangolin_LIBRARIES} gtsam)
 
 add_executable(pose_converter pose_converter.cpp)
+
+add_executable(find_fundamental_matrix find_fundamental_matrix.cpp)
+target_link_libraries(find_fundamental_matrix ${OpenCV_LIBS} ${Pangolin_LIBRARIES})
+
