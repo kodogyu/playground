@@ -43,6 +43,7 @@ add_executable(boost_format boost_format.cpp)
 # eigen
 add_executable(eigen_transform eigen_transform.cpp)
 add_executable(eigen_basic eigen_basic.cpp)
+add_executable(eigen_rpe eigen_rpe.cpp)
 # multi thread
 add_executable(basic_multi_thread basic_multi_thread.cpp)
 target_link_libraries(basic_multi_thread pthread)  # PRIVATE
@@ -98,6 +99,9 @@ target_link_libraries(opencv_fisheye_camera ${OpenCV_LIBS})
 
 add_executable(new new.cpp)
 target_link_libraries(new ${OpenCV_LIBS})
+
+add_executable(opencv_visualize opencv_visualize.cpp)
+target_link_libraries(opencv_visualize ${OpenCV_LIBS})
 
 # Sophus files
 add_executable(sophus_basic sophus_basic.cpp)
