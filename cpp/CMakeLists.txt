@@ -100,8 +100,8 @@ target_link_libraries(opencv_fisheye_camera ${OpenCV_LIBS})
 add_executable(new new.cpp)
 target_link_libraries(new ${OpenCV_LIBS})
 
-add_executable(opencv_visualize opencv_visualize.cpp)
-target_link_libraries(opencv_visualize ${OpenCV_LIBS})
+add_executable(opencv_vis3d opencv_vis3d.cpp)
+target_link_libraries(opencv_vis3d ${OpenCV_LIBS})
 
 # Sophus files
 add_executable(sophus_basic sophus_basic.cpp)

@@ -3,21 +3,47 @@
 
 #include <iostream>
 
-void visualize3d(std::vector<cv::Point3d> points3D) {
+void visualize3d(std::vector<cv::Point3d> points3D, cv::Mat camera_pose) {
     cv::viz::Viz3d window; //creating a Viz window
 
     //Displaying the Coordinate Origin (0,0,0)
-    window.showWidget("coordinate", cv::viz::WCoordinateSystem(100));
+    window.showWidget("coordinate", cv::viz::WCoordinateSystem(10));
 
-    points3D.push_back(cv::Point3d(0, 0, 0));
-    points3D.push_back(cv::Point3d(-10, -10, 10));
-    points3D.push_back(cv::Point3d(-50, -50, 50));
-    points3D.push_back(cv::Point3d(-100, -100, 100));
-    points3D.push_back(cv::Point3d(-200, -200, 200));
-    points3D.push_back(cv::Point3d(-300, -300, 300));
+    // camera pose
+    cv::Mat axis_O, axis_X, axis_Y, axis_Z;
+    axis_O = camera_pose * cv::Vec4d(0, 0, 0, 1);
+    axis_X = camera_pose * cv::Vec4d(1, 0, 0, 1);
+    axis_Y = camera_pose * cv::Vec4d(0, 1, 0, 1);
+    axis_Z = camera_pose * cv::Vec4d(0, 0, 1, 1);
+    cv::Point3d pAxis_O(axis_O), pAxis_X(axis_X), pAxis_Y(axis_Y), pAxis_Z(axis_Z);
+    std::cout << "axis_O: " << pAxis_O << std::endl;
+    std::cout << "axis_X: " << pAxis_X << std::endl;
+    std::cout << "axis_Y: " << pAxis_Y << std::endl;
+    std::cout << "axis_Z: " << pAxis_Z << std::endl;
+
+    cv::viz::WLine wAxis_X(pAxis_O, pAxis_X * 10, cv::viz::Color::red());
+    cv::viz::WLine wAxis_Y(pAxis_O, pAxis_Y * 10, cv::viz::Color::blue());
+    cv::viz::WLine wAxis_Z(pAxis_O, pAxis_Z * 10, cv::viz::Color::green());
+    wAxis_X.setRenderingProperty(cv::viz::LINE_WIDTH, 4.0);
+    wAxis_Y.setRenderingProperty(cv::viz::LINE_WIDTH, 4.0);
+    wAxis_Z.setRenderingProperty(cv::viz::LINE_WIDTH, 4.0);
+    window.showWidget("cam_axis_x", wAxis_X);
+    window.showWidget("cam_axis_y", wAxis_Y);
+    window.showWidget("cam_axis_z", wAxis_Z);
+
+    std::vector<cv::Point3d> points_test;
+    points_test.push_back(cv::Point3d(0.0, 0.0, 0.0));
+    points_test.push_back(cv::Point3d(-10.1, -10.1, 10.1));
+    points_test.push_back(cv::Point3d(-50.2, -50.2, 50.2));
+    points_test.push_back(cv::Point3d(-100, -100, 100));
+    points_test.push_back(cv::Point3d(-200, -200, 200));
+    points_test.push_back(cv::Point3d(-300, -300, 300));
+    cv::viz::WCloud wPoints_test(points_test, cv::viz::Color::white());
+    wPoints_test.setRenderingProperty(cv::viz::POINT_SIZE, 10);
+    window.showWidget("points test", wPoints_test);
 
     // Point cloud widget
-    cv::viz::WCloud points3D_widget(points3D, cv::viz::Color::green());
+    cv::viz::WCloud points3D_widget(points3D, cv::viz::Color::blue());
     points3D_widget.setRenderingProperty(cv::viz::POINT_SIZE, 10);
 
     //Displaying the 3D points in green
@@ -29,9 +55,12 @@ cv::Mat decomposeEssentialMat(cv::Mat essential_mat) {
     cv::Mat U, S, VT;
     cv::SVD::compute(essential_mat, S, U, VT);
 
+    // OpenCV decomposeEssentialMat()
     cv::Mat W = (cv::Mat_<double>(3, 3) << 0, 1, 0,
                                             -1, 0, 0,
                                             0, 0, 1);
+
+    // hand function.
     // cv::Mat W = (cv::Mat_<double>(3, 3) << 0, -1, 0,
     //                                         1, 0, 0,
     //                                         0, 0, 1);
@@ -71,8 +100,8 @@ int main() {
     // feature extraction
     cv::Ptr<cv::SIFT> sift = cv::SIFT::create(0, 3, 0.04, 10.0, 1.6);
     // cv::Ptr<cv::ORB> orb = cv::ORB::create();
-    std::vector<cv::KeyPoint> prev_image_keypoints;
-    std::vector<cv::KeyPoint> curr_image_keypoints;
+    std::vector<cv::KeyPoint> prev_image_keypoints, curr_image_keypoints;
+
     cv::Mat prev_image_descriptors;
     cv::Mat curr_image_descriptors;
     sift->detectAndCompute(prev_image_gray, cv::Mat(), prev_image_keypoints, prev_image_descriptors);
@@ -84,18 +113,33 @@ int main() {
     std::cout << "prev image desciptor size: " << prev_image_descriptors.size << std::endl;
     std::cout << "curr image desciptor size: " << curr_image_descriptors.size << std::endl;
 
+
     // draw features
-    cv::Mat kp_image;
-    cv::cvtColor(prev_image_gray, kp_image, cv::COLOR_GRAY2BGR);
-    for (int i = 0; i < 10; i++) {
-        cv::KeyPoint kp = prev_image_keypoints[i];
-        cv::circle(kp_image, kp.pt, 10, cv::Scalar(0, 255, 0), 3);
-    }
-    cv::Mat resized_kp_image;
-    cv::resize(kp_image, resized_kp_image, kp_image.size()/2);
-    cv::imshow("kp_image", resized_kp_image);
+
+    // cv::Mat kp_image;
+    // cv::cvtColor(prev_image_gray, kp_image, cv::COLOR_GRAY2BGR);
+    // for (int i = 0; i < 10; i++) {
+    //     cv::KeyPoint kp = prev_image_keypoints[i];
+    //     cv::circle(kp_image, kp.pt, 10, cv::Scalar(0, 255, 0), 3);
+    // }
+    // cv::Mat resized_kp_image;
+    // cv::resize(kp_image, resized_kp_image, kp_image.size()/2);
+    // cv::imshow("kp_image", resized_kp_image);
+    // cv::waitKey(0);
+    // cv::destroyAllWindows();
+
+    std::vector<cv::KeyPoint> prev_image_keypoints_100, curr_image_keypoints_100;
+    prev_image_keypoints_100.assign(prev_image_keypoints.begin(), prev_image_keypoints.begin() + 100);
+    curr_image_keypoints_100.assign(curr_image_keypoints.begin(), curr_image_keypoints.begin() + 100);
+
+    cv::Mat prev_kp_image, curr_kp_image;
+    cv::drawKeypoints(prev_image_color, prev_image_keypoints_100, prev_kp_image);
+    cv::drawKeypoints(curr_image_color, curr_image_keypoints_100, curr_kp_image);
+    cv::imshow("prev_kp_image", prev_kp_image);
+    cv::imshow("curr_kp_image", curr_kp_image);
     cv::waitKey(0);
     cv::destroyAllWindows();
+
 
 
     // feature matching
@@ -203,15 +247,18 @@ int main() {
     for (int i = 0; i < 10; i++) {
             std::cout << " point 3d: " << points3D[i] << std::endl;
     }
-    visualize3d(points3D);
+    visualize3d(points3D, relative_pose);
 
     // reproject
     std::vector<cv::Point2d> projected_points, curr_projected_points;
-    cv::projectPoints(points3D, cv::Mat::eye(cv::Size(3, 3), CV_64FC1), cv::Vec3d::zeros(), intrinsic, cv::Mat(), projected_points);
+    cv::Mat rvec;
+    cv::Rodrigues(cv::Mat::eye(cv::Size(3, 3), CV_64FC1), rvec);
+    cv::projectPoints(points3D, rvec, cv::Vec3d::zeros(), intrinsic, cv::Mat(), projected_points);
 
     cv::Mat r_vec;
     // cv::Rodrigues(R, r_vec);
     cv::Rodrigues(relative_pose.rowRange(0, 3).colRange(0, 3), r_vec);
+    std::cout << "rotation matrix:\n" << relative_pose.rowRange(0, 3).colRange(0, 3) << std::endl;
     // cv::projectPoints(points3D, r_vec, t, intrinsic, cv::Mat(), curr_projected_points);
     cv::projectPoints(points3D, r_vec, relative_pose.col(3), intrinsic, cv::Mat(), curr_projected_points);
     std::cout << "projected" << std::endl;
@@ -222,6 +269,10 @@ int main() {
 
         cv::circle(prev_image_color, pt, 3, cv::Scalar(0, 255, 0), 1);
         cv::circle(curr_image_color, pt2, 3, cv::Scalar(0, 255, 0), 1);
+
+        if (i < 10) {
+            std::cout << pt2.x << ", " << pt2.y << std::endl;
+        }
     }
     cv::imshow("projected", prev_image_color);
     cv::imshow("projected2", curr_image_color);

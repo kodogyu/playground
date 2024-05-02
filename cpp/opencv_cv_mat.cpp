@@ -41,5 +41,12 @@ int main() {
     cout <<"mat2:" << endl;
     cout << mat2 << endl;
 
+    // cv::Mat to cv::Point3d
+    cout << "==========" << endl;
+    cv::Mat point = (cv::Mat_<double>(3, 1) << 1.0, 2.0, 3.0);
+    cv::Point3d point3d(point);
+    cout << "point:\n" << point << std::endl;
+    cout << "point3d:\n" << point3d << std::endl;
+
     return 0;
 }
