@@ -748,6 +748,126 @@ void calcRPE_rt(const std::vector<Eigen::Isometry3d> &gt_poses, const Eigen::Iso
 }
 
 
+void decomposeEssentialMat(const cv::Mat &essential_mat, cv::Mat &R1, cv::Mat &R2, cv::Mat &t) {
+    cv::Mat U, S, VT;
+    cv::SVD::compute(essential_mat, S, U, VT);
+
+    // OpenCV decomposeEssentialMat()
+    // cv::Mat W = (cv::Mat_<double>(3, 3) << 0, 1, 0,
+    //                                         -1, 0, 0,
+    //                                         0, 0, 1);
+
+    // hand function.
+    cv::Mat W = (cv::Mat_<double>(3, 3) << 0, -1, 0,
+                                            1, 0, 0,
+                                            0, 0, 1);
+
+    R1 = U * W * VT;
+    R2 = U * W.t() * VT;
+    t = U.col(2);
+
+    std::vector<cv::Mat> pose_candidates(4);
+    cv::hconcat(std::vector<cv::Mat>{U * W * VT, U.col(2)}, pose_candidates[0]);
+    cv::hconcat(std::vector<cv::Mat>{U * W * VT, -U.col(2)}, pose_candidates[1]);
+    cv::hconcat(std::vector<cv::Mat>{U * W.t() * VT, U.col(2)}, pose_candidates[2]);
+    cv::hconcat(std::vector<cv::Mat>{U * W.t() * VT, -U.col(2)}, pose_candidates[3]);
+
+    for (int i = 0; i < pose_candidates.size(); i++) {
+        std::cout << "pose_candidate [" << i << "]: \n" << pose_candidates[i] << std::endl;
+    }
+}
+
+int chiralityCheck(const cv::Mat &intrinsic,
+                    const std::vector<cv::Point2f> &image0_kp_pts,
+                    const std::vector<cv::Point2f> &image1_kp_pts,
+                    const Eigen::Isometry3d &cam1_pose) {
+    Eigen::Matrix3d intrinsic_eigen;
+    cv::cv2eigen(intrinsic, intrinsic_eigen);
+    Eigen::MatrixXd prev_proj = Eigen::MatrixXd::Identity(3, 4);
+    Eigen::MatrixXd curr_proj = Eigen::MatrixXd::Identity(3, 4);
+
+    prev_proj = intrinsic_eigen * prev_proj;
+    curr_proj = intrinsic_eigen * curr_proj * cam1_pose.inverse().matrix();
+
+    int positive_cnt = 0;
+    for (int i = 0; i < image0_kp_pts.size(); i++) {
+        // if (mask.at<unsigned char>(i) != 1) {
+        //     continue;
+        // }
+
+        Eigen::Matrix4d A;
+        A.row(0) = image0_kp_pts[i].x * prev_proj.row(2) - prev_proj.row(0);
+        A.row(1) = image0_kp_pts[i].y * prev_proj.row(2) - prev_proj.row(1);
+        A.row(2) = image1_kp_pts[i].x * curr_proj.row(2) - curr_proj.row(0);
+        A.row(3) = image1_kp_pts[i].y * curr_proj.row(2) - curr_proj.row(1);
+
+        Eigen::JacobiSVD<Eigen::Matrix4d> svd(A, Eigen::ComputeFullU | Eigen::ComputeFullV);
+        Eigen::Vector4d point_3d_homo = svd.matrixV().col(3);
+        Eigen::Vector3d point_3d = point_3d_homo.head(3) / point_3d_homo[3];
+        // landmarks.push_back(point_3d);
+
+        Eigen::Vector4d cam1_point_3d_homo = cam1_pose.inverse() * point_3d_homo;
+        Eigen::Vector3d cam1_point_3d = cam1_point_3d_homo.head(3) / cam1_point_3d_homo[3];
+        // std::cout << "landmark(world) z: " << point_3d.z() << ", (camera) z: " << cam1_point_3d.z() << std::endl;
+        if (point_3d.z() > 0 && cam1_point_3d.z() > 0 && point_3d.z() < 70) {
+            positive_cnt++;
+        }
+    }
+    return positive_cnt;
+}
+
+void recoverPose(const cv::Mat &intrinsic,
+                        const cv::Mat &essential_mat,
+                        const std::vector<cv::Point2f> &image0_kp_pts,
+                        const std::vector<cv::Point2f> &image1_kp_pts,
+                        Eigen::Isometry3d &relative_pose) {
+
+    // Decompose essential matrix
+    cv::Mat R1, R2, t;
+    // cv::decomposeEssentialMat(essential_mat, R1, R2, t);
+    decomposeEssentialMat(essential_mat, R1, R2, t);
+
+    Eigen::Matrix3d rotation_mat;
+    Eigen::Vector3d translation_mat;
+
+    std::vector<Eigen::Isometry3d> rel_pose_candidates(4, Eigen::Isometry3d::Identity());
+    int valid_point_cnts[4];
+    for (int k = 0; k < 4; k++) {
+        if (k == 0) {
+            cv::cv2eigen(R1, rotation_mat);
+            cv::cv2eigen(t, translation_mat);
+        }
+        else if (k == 1) {
+            cv::cv2eigen(R2, rotation_mat);
+            cv::cv2eigen(t, translation_mat);
+        }
+        else if (k == 2) {
+            cv::cv2eigen(R1, rotation_mat);
+            cv::cv2eigen(-t, translation_mat);
+        }
+        else if (k == 3) {
+            cv::cv2eigen(R2, rotation_mat);
+            cv::cv2eigen(-t, translation_mat);
+        }
+        rel_pose_candidates[k].linear() = rotation_mat;
+        rel_pose_candidates[k].translation() = translation_mat;
+        valid_point_cnts[k] = chiralityCheck(intrinsic, image0_kp_pts, image1_kp_pts, rel_pose_candidates[k]);
+    }
+
+    int max_cnt = 0, max_idx = 0;
+    for (int k = 0; k < 4; k++) {
+        std::cout << "cnt[" << k << "]: " << valid_point_cnts[k] << std::endl;
+        if (valid_point_cnts[k] > max_cnt) {
+            max_cnt = valid_point_cnts[k];
+            max_idx = k;
+        }
+    }
+    // std::cout << "max idx: " << max_idx << std::endl;
+    relative_pose = rel_pose_candidates[max_idx];
+    // std::cout << "relative pose:\n " << relative_pose.matrix() << std::endl;
+}
+
+
 
 
 
@@ -861,8 +981,8 @@ int main(int argc, char** argv) {
 
     //**========== 3. Motion estimation ==========**//
     cv::Mat R, t;
-    cv::recoverPose(essential_mat, curr_frame_kp_pts, prev_frame_kp_pts, intrinsic, R, t, mask);
-    // cv::recoverPose(essential_mat, image1_kp_pts, image0_kp_pts, intrinsic, R, t, mask);
+    // cv::recoverPose(essential_mat, curr_frame_kp_pts, prev_frame_kp_pts, intrinsic, R, t, mask);
+    recoverPose(essential_mat, curr_frame_kp_pts, prev_frame_kp_pts, intrinsic, R, t, mask);
 
     int pose_inlier = countMask(mask);
     std::cout << "pose inlier: " << pose_inlier << std::endl;
