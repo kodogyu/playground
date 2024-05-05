@@ -12,12 +12,12 @@
 # p2: -0.000222
 # k3: -0.029608
 
-# # KITTI
-# fx: 718.856
-# fy: 718.856
-# s: 0.0
-# cx: 607.1928
-# cy: 185.2157
+# KITTI
+fx: 718.856
+fy: 718.856
+s: 0.0
+cx: 607.1928
+cy: 185.2157
 
 # # TUM
 # fx: 535.4
@@ -26,12 +26,12 @@
 # cx: 320.1
 # cy: 247.6
 
-# nutella
-fx: 3092.8
-fy: 3092.8
-s: 0.0215878
-cx: 2016
-cy: 1512
+# # nutella
+# fx: 3092.8
+# fy: 3092.8
+# s: 0.0215878
+# cx: 2016
+# cy: 1512
 
 #========== Visualize ==========#
 display_gt: 1
@@ -64,14 +64,14 @@ optimizer_verbose: 0
 #========== VO patch ==========#
 # prev_frame: vo_patch/source_frames/000000.png
 # curr_frame: vo_patch/source_frames/000001.png
-# prev_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000000.png
-# curr_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000001.png
+prev_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000000.png
+curr_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000001.png
 # prev_frame: /home/kodogyu/Datasets/TUM/rgbd_dataset_freiburg3_checkerboard_large/rgb/1341835195.545827.png
 # curr_frame: /home/kodogyu/Datasets/TUM/rgbd_dataset_freiburg3_checkerboard_large/rgb/1341835195.577840.png
-prev_frame: /home/kodogyu/github_repos/sfm/data/nutellar2/nutella13.jpg
-curr_frame: /home/kodogyu/github_repos/sfm/data/nutellar2/nutella14.jpg
+# prev_frame: /home/kodogyu/github_repos/sfm/data/nutellar2/nutella13.jpg
+# curr_frame: /home/kodogyu/github_repos/sfm/data/nutellar2/nutella14.jpg
 
-prev_frame_idx: 13
+prev_frame_idx: 0
 
 # # KITTI-360
 # prev_frame: /home/kodogyu/Datasets/KITTI-360/data_2d_raw/2013_05_28_drive_0000_sync/image_00/data_rgb/0000000000.png
