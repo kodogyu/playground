@@ -56,14 +56,14 @@ cv::Mat decomposeEssentialMat(cv::Mat essential_mat) {
     cv::SVD::compute(essential_mat, S, U, VT);
 
     // OpenCV decomposeEssentialMat()
-    cv::Mat W = (cv::Mat_<double>(3, 3) << 0, 1, 0,
-                                            -1, 0, 0,
-                                            0, 0, 1);
+    // cv::Mat W = (cv::Mat_<double>(3, 3) << 0, 1, 0,
+    //                                         -1, 0, 0,
+    //                                         0, 0, 1);
 
     // hand function.
-    // cv::Mat W = (cv::Mat_<double>(3, 3) << 0, -1, 0,
-    //                                         1, 0, 0,
-    //                                         0, 0, 1);
+    cv::Mat W = (cv::Mat_<double>(3, 3) << 0, -1, 0,
+                                            1, 0, 0,
+                                            0, 0, 1);
 
     std::vector<cv::Mat> pose_candidates(4);
     cv::hconcat(std::vector<cv::Mat>{U * W * VT, U.col(2)}, pose_candidates[0]);
@@ -132,13 +132,13 @@ int main() {
     prev_image_keypoints_100.assign(prev_image_keypoints.begin(), prev_image_keypoints.begin() + 100);
     curr_image_keypoints_100.assign(curr_image_keypoints.begin(), curr_image_keypoints.begin() + 100);
 
-    cv::Mat prev_kp_image, curr_kp_image;
-    cv::drawKeypoints(prev_image_color, prev_image_keypoints_100, prev_kp_image);
-    cv::drawKeypoints(curr_image_color, curr_image_keypoints_100, curr_kp_image);
-    cv::imshow("prev_kp_image", prev_kp_image);
-    cv::imshow("curr_kp_image", curr_kp_image);
-    cv::waitKey(0);
-    cv::destroyAllWindows();
+    // cv::Mat prev_kp_image, curr_kp_image;
+    // cv::drawKeypoints(prev_image_color, prev_image_keypoints_100, prev_kp_image);
+    // cv::drawKeypoints(curr_image_color, curr_image_keypoints_100, curr_kp_image);
+    // cv::imshow("prev_kp_image", prev_kp_image);
+    // cv::imshow("curr_kp_image", curr_kp_image);
+    // cv::waitKey(0);
+    // cv::destroyAllWindows();
 
 
 
@@ -155,9 +155,6 @@ int main() {
     for (int i = 0; i < matches.size(); i++) {
         if (matches[i][0].distance < matches[i][1].distance * 0.8) {
             good_matches.push_back(matches[i][0]);
-        }
-        if (i < 10){
-            std::cout << matches[i][0].distance << ", " << matches[i][1].distance << std::endl;
         }
     }
     std::cout << "good matches size: " << good_matches.size() << std::endl;
@@ -189,11 +186,12 @@ int main() {
     cv::Mat intrinsic = (cv::Mat_<double>(3, 3) << 718.856, 0, 607.1928,
                                                     0, 718.856, 185.2157,
                                                     0, 0, 1);
-    cv::Mat essential_mat = cv::findEssentialMat(image0_kp_pts, image1_kp_pts, intrinsic, cv::RANSAC, 0.999, 1.0, 500, mask);
+    cv::Mat essential_mat = cv::findEssentialMat(image1_kp_pts, image0_kp_pts, intrinsic, cv::RANSAC, 0.999, 1.0, 500, mask);
     std::cout << "essential matrix: \n" << essential_mat << std::endl;
 
     // relative pose
-    cv::Mat relative_pose = decomposeEssentialMat(essential_mat);
+    // cv::Mat relative_pose = decomposeEssentialMat(essential_mat);
+
     // cv::Mat R1, R2, t1;
     // cv::decomposeEssentialMat(essential_mat, R1, R2, t1);
     // std::cout << "=====OpenCV decomposition=====" << std::endl;
@@ -201,16 +199,16 @@ int main() {
     // std::cout << "R2:\n" << R2 << std::endl;
     // std::cout << "t:\n" << t1 << std::endl;
 
-    // cv::Mat R, t;
-    // cv::recoverPose(essential_mat, image0_kp_pts, image1_kp_pts, intrinsic, R, t, mask);
-    // cv::Mat relative_pose1;
-    // cv::hconcat(std::vector<cv::Mat>{R, -t}, relative_pose1);
-    // std::cout << "R:\n" << R << std::endl;
-    // std::cout << "t:\n" << t << std::endl;
-    // std::cout << "relative pose1:\n" << relative_pose1 << std::endl;
-    // std::cout << "intrinsic:\n" << intrinsic << std::endl;
+    cv::Mat R, t;
+    cv::recoverPose(essential_mat, image0_kp_pts, image1_kp_pts, intrinsic, R, t, mask);
+    cv::Mat relative_pose1;
+    cv::hconcat(std::vector<cv::Mat>{R, -t}, relative_pose1);
+    std::cout << "R:\n" << R << std::endl;
+    std::cout << "t:\n" << t << std::endl;
+    std::cout << "relative pose1:\n" << relative_pose1 << std::endl;
+    std::cout << "intrinsic:\n" << intrinsic << std::endl;
 
-    cv::Mat camera_matrix = intrinsic * relative_pose;
+    cv::Mat camera_matrix = intrinsic * relative_pose1;
     // cv::Mat camera_matrix1 = intrinsic * relative_pose1;
     std::cout << "camera Matrix:\n" << camera_matrix << std::endl;
     // std::cout << "camera Matrix1:\n" << camera_matrix1 << std::endl;
@@ -247,7 +245,7 @@ int main() {
     for (int i = 0; i < 10; i++) {
             std::cout << " point 3d: " << points3D[i] << std::endl;
     }
-    visualize3d(points3D, relative_pose);
+    visualize3d(points3D, relative_pose1);
 
     // reproject
     std::vector<cv::Point2d> projected_points, curr_projected_points;
@@ -257,21 +255,22 @@ int main() {
 
     cv::Mat r_vec;
     // cv::Rodrigues(R, r_vec);
-    cv::Rodrigues(relative_pose.rowRange(0, 3).colRange(0, 3), r_vec);
-    std::cout << "rotation matrix:\n" << relative_pose.rowRange(0, 3).colRange(0, 3) << std::endl;
-    // cv::projectPoints(points3D, r_vec, t, intrinsic, cv::Mat(), curr_projected_points);
-    cv::projectPoints(points3D, r_vec, relative_pose.col(3), intrinsic, cv::Mat(), curr_projected_points);
+    // cv::Rodrigues(relative_pose1.rowRange(0, 3).colRange(0, 3), r_vec);
+    // std::cout << "rotation matrix:\n" << relative_pose1.rowRange(0, 3).colRange(0, 3) << std::endl;
+    cv::projectPoints(points3D, R, t, intrinsic, cv::Mat(), curr_projected_points);
+    // cv::projectPoints(points3D, r_vec, relative_pose.col(3), intrinsic, cv::Mat(), curr_projected_points);
     std::cout << "projected" << std::endl;
 
     for (int i = 0; i < 300; i++) {
-        cv::Point2f pt = projected_points[i];
+        cv::Point2f pt1 = projected_points[i];
         cv::Point2f pt2 = curr_projected_points[i];
 
-        cv::circle(prev_image_color, pt, 3, cv::Scalar(0, 255, 0), 1);
+        cv::circle(prev_image_color, pt1, 3, cv::Scalar(0, 255, 0), 1);
         cv::circle(curr_image_color, pt2, 3, cv::Scalar(0, 255, 0), 1);
 
         if (i < 10) {
-            std::cout << pt2.x << ", " << pt2.y << std::endl;
+            std::cout << "pt1: " << pt1.x << ", " << pt1.y << std::endl;
+            std::cout << "pt2: " << pt2.x << ", " << pt2.y << std::endl;
         }
     }
     cv::imshow("projected", prev_image_color);
