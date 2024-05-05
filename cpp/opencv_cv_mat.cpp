@@ -48,5 +48,14 @@ int main() {
     cout << "point:\n" << point << std::endl;
     cout << "point3d:\n" << point3d << std::endl;
 
+    // cv::Mat vector
+    cout << "========== cv::Mat vector ==========" << endl;
+    std::vector<cv::Mat> mat_vec(4, point.clone());
+    for (int i = 0; i < mat_vec.size(); i++) {
+        std::cout << "elem:\n" << mat_vec[i] << std::endl;
+    }
+    mat_vec[0].at<double>(0) = 0;
+    std::cout << "mat_vec[0]:\n" << mat_vec[0] << std::endl;
+
     return 0;
 }
