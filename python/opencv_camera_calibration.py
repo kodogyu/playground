@@ -75,14 +75,25 @@ for i in range(len(objpoints)):
 print( "total error: {}".format(mean_error/len(objpoints)) )
 
 # essential matrix, recover pose
-essential_mat = cv.findEssentialMat(imgpoints[0], imgpoints[1], mtx, method=cv.RANSAC, maxIters=500, threshold=1)
-ret, R, t, mask = cv.recoverPose(essential_mat, imgpoints[0], imgpoints[1], mtx )
+print("imgpoints[0] length:", imgpoints[0].shape)
+print("imgpoints[1] length:", imgpoints[1].shape)
+
+essential_mat, mask = cv.findEssentialMat(imgpoints[0], imgpoints[1], mtx, method=cv.RANSAC, maxIters=500, threshold=1)
+print("essential matrix:\n", essential_mat )
+rec_ret, R, t, mask = cv.recoverPose(essential_mat, imgpoints[0].reshape(-1, 2), imgpoints[1].reshape(-1, 2), mtx)
+
+recover_pose_rvec = cv.Rodrigues(R)
+print("recover pose rvec:", recover_pose_rvec)
+print("recover pose tvec:", t)
+print("calibration rvec:", rvecs[0])
+print("calibration tvec:", tvecs[0])
 
 projected_points, _ = cv.projectPoints(objpoints[0], R, t, mtx, dist)
+projected_points2, _ = cv.projectPoints(objpoints[0], rvecs[0], tvecs[0], mtx, dist)
 
-result_img = deepcopy(dst)
-for pt in projected_points:
-  cv.circle(result_img, pt, 1, (0, 255, 0))
+result_img = deepcopy(img)
+for pt in projected_points2:
+  cv.circle(result_img, pt[0].astype(np.int16), 1, (0, 255, 0))
 
 cv.imshow("result image", result_img)
 cv.waitKey(0)
