@@ -19,6 +19,27 @@ void logTrajectory(std::vector<Eigen::Isometry3d> poses);
 void displayPoses(const std::vector<Eigen::Isometry3d> &gt_poses, const std::vector<Eigen::Isometry3d> &est_poses, const std::vector<Eigen::Isometry3d> &aligned_poses);
 void displayFramesAndLandmarks(const std::vector<Eigen::Isometry3d> &est_poses, const std::vector<Eigen::Vector3d> &landmarks);
 
+
+cv::Mat readImage(std::string image_file, int img_entry_idx, cv::Mat intrinsic, cv::Mat distortion) {
+    cv::Mat result;
+
+    // read the image
+    cv::Mat image = cv::imread(image_file, cv::IMREAD_GRAYSCALE);
+
+    cv::undistort(image, result, intrinsic, distortion);
+
+    // // fisheye image processing (rectification)
+    // if (pConfig_->is_fisheye_) {
+    //     cv::Size new_size(640, 480);
+    //     cv::Mat Knew = (cv::Mat_<double>(3, 3) << new_size.width/4, 0, new_size.width/2,
+    //                                             0, new_size.height/4, new_size.height/2,
+    //                                             0, 0, 1);
+    //     cv::omnidir::undistortImage(image, result, pCamera_->intrinsic_, pCamera_->distortion_, pCamera_->xi_, cv::omnidir::RECTIFY_PERSPECTIVE, Knew, new_size);
+    // }
+
+    return result;
+}
+
 // response comparison, for list sorting
 bool compare_response(cv::KeyPoint first, cv::KeyPoint second)
 {
@@ -77,25 +98,31 @@ void triangulate2(cv::Mat intrinsic, std::vector<cv::Point2f> img0_kp_pts, std::
 }
 
 void triangulate_cv(cv::Mat intrinsic, std::vector<cv::Point2f> img0_kp_pts, std::vector<cv::Point2f> img1_kp_pts, Eigen::Isometry3d &cam1_pose, std::vector<Eigen::Vector3d> &landmarks) {
-    cv::Mat P0 = cv::Mat::eye(3, 4, CV_64F);
-    cv::Mat P1(3, 4, CV_64F);
-    Eigen::Matrix3d rotation = cam1_pose.rotation();
-    cv::eigen2cv(rotation, P1(cv::Range::all(), cv::Range(0, 3)));
-    cv::eigen2cv(Eigen::Vector3d(cam1_pose.translation()), P1.col(3));
+    cv::Mat points4D;
+    cv::Mat prev_proj_mat, curr_proj_mat;
+    cv::Mat prev_pose, curr_pose;
+    Eigen::MatrixXd pose_temp;
+    pose_temp = Eigen::Isometry3d::Identity().inverse().matrix().block<3, 4>(0, 0);
+    cv::eigen2cv(pose_temp, prev_pose);
+    pose_temp = cam1_pose.inverse().matrix().block<3, 4>(0, 0);
+    cv::eigen2cv(pose_temp, curr_pose);
+    prev_proj_mat = intrinsic * prev_pose;
+    curr_proj_mat = intrinsic * curr_pose;
 
-    std::cout << "P1: \n" << P1 << std::endl;
+    std::cout << "prev_proj_mat:\n" << prev_proj_mat << std::endl;
+    std::cout << "curr_proj_mat:\n" << curr_proj_mat << std::endl;
 
-    cv::Mat landmarks_mat;
-    cv::triangulatePoints(P0, P1, img0_kp_pts, img1_kp_pts, landmarks_mat);
+    // triangulate
+    cv::triangulatePoints(prev_proj_mat, curr_proj_mat, img0_kp_pts, img1_kp_pts, points4D);
 
-    std::cout << "landmarks size: " << landmarks_mat.size << std::endl;
-    std::cout << "landmarks cols: " << landmarks_mat.cols << std::endl;
-    for (int i = 0; i < landmarks_mat.cols; i++) {
-        Eigen::Vector4d landmark_homo;
-        cv::cv2eigen(landmarks_mat.col(i), landmark_homo);
+    // homogeneous -> 3D
+    for (int i = 0; i < points4D.cols; i++) {
+        cv::Mat point_homo = points4D.col(i);
+        Eigen::Vector3d point_3d(point_homo.at<float>(0) / point_homo.at<float>(3),
+                                point_homo.at<float>(1) / point_homo.at<float>(3),
+                                point_homo.at<float>(2) / point_homo.at<float>(3));
 
-        Eigen::Vector3d landmark = landmark_homo.head(3) / landmark_homo[3];
-        landmarks.push_back(landmark);
+        landmarks.push_back(point_3d);
     }
 }
 
@@ -518,79 +545,61 @@ int main(int argc, char** argv) {
     cv::Mat prev_image_dist = cv::imread(config_file["prev_frame"], cv::IMREAD_GRAYSCALE);
     cv::Mat prev_image = prev_image_dist.clone();
     std::cout << "prev_image size: " << prev_image.size << std::endl;
-    // cv::undistort(prev_image_dist, prev_image, intrinsic, distortion);
+    cv::undistort(prev_image_dist, prev_image, intrinsic, distortion);
     std::string prev_id = std::string(config_file["prev_frame"]);
-    // int p_id = std::stoi(prev_id.substr(prev_id.length() - 10, 6));
-    int p_id = 13;
+    int p_id = std::stoi(prev_id.substr(prev_id.length() - 10, 6));
+    // int p_id = 13;
     poses.push_back(Eigen::Isometry3d::Identity());
 
     // new Frame!
     cv::Mat curr_image_dist = cv::imread(config_file["curr_frame"], cv::IMREAD_GRAYSCALE);
     cv::Mat curr_image = curr_image_dist.clone();
     std::cout << "curr_image size: " << curr_image.size << std::endl;
-    // cv::undistort(curr_image_dist, curr_image, intrinsic, distortion);
+    cv::undistort(curr_image_dist, curr_image, intrinsic, distortion);
     std::string curr_id = std::string(config_file["curr_frame"]);
-    // int c_id = std::stoi(curr_id.substr(curr_id.length() - 10, 6));
-    int c_id = 14;
+    int c_id = std::stoi(curr_id.substr(curr_id.length() - 10, 6));
+    // int c_id = 14;
 
     //**========== 1. Feature extraction ==========**//
     cv::Mat curr_image_descriptors;
     std::vector<cv::KeyPoint> curr_image_keypoints;
     cv::Mat prev_image_descriptors;
     std::vector<cv::KeyPoint> prev_image_keypoints;
-    // orb->detectAndCompute(prev_image, cv::Mat(), prev_image_keypoints, prev_image_descriptors);
-    // orb->detectAndCompute(curr_image, cv::Mat(), curr_image_keypoints, curr_image_descriptors);
-    sift->detectAndCompute(prev_image, cv::Mat(), prev_image_keypoints, prev_image_descriptors);
-    sift->detectAndCompute(curr_image, cv::Mat(), curr_image_keypoints, curr_image_descriptors);
-
-    bool filter_keypoints = static_cast<bool>(static_cast<int>(config_file["filter_keypoints"]));
-    if (filter_keypoints) {
-        // filter keypoints
-        int patch_width = config_file["patch_width"];
-        int patch_height = config_file["patch_height"];
-        int kps_per_patch = config_file["kps_per_patch"];
-        cv::Size patch_size = cv::Size(patch_width, patch_height);
-        filterKeypoints(cv::Size(prev_image.cols, prev_image.rows), patch_size, kps_per_patch, prev_image_keypoints, prev_image_descriptors);
-
-        // draw grid
-        drawGrid(prev_image, patch_size, kps_per_patch);
-
-        // draw keypoints
-        std::string tail;
-        tail = "_(" + std::to_string(patch_width) + ", " + std::to_string(patch_height) + ", " + std::to_string(kps_per_patch) + ")";
-        drawKeypointsSingleImage(p_id, prev_image, prev_image_keypoints, "vo_patch/filtered_keypoints", tail);
-    }
+    orb->detectAndCompute(prev_image, cv::Mat(), prev_image_keypoints, prev_image_descriptors);
+    orb->detectAndCompute(curr_image, cv::Mat(), curr_image_keypoints, curr_image_descriptors);
+    // sift->detectAndCompute(prev_image, cv::Mat(), prev_image_keypoints, prev_image_descriptors);
+    // sift->detectAndCompute(curr_image, cv::Mat(), curr_image_keypoints, curr_image_descriptors);
 
     //**========== 2. Feature matching ==========**//
     // create a matcher
-    // cv::Ptr<cv::DescriptorMatcher> orb_matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::BRUTEFORCE);
-    cv::Ptr<cv::BFMatcher> bf_matcher = cv::BFMatcher::create();
+    cv::Ptr<cv::DescriptorMatcher> orb_matcher = cv::DescriptorMatcher::create(cv::DescriptorMatcher::BRUTEFORCE_HAMMING);
+    // cv::Ptr<cv::BFMatcher> bf_matcher = cv::BFMatcher::create();
 
     // image0 & image1 (matcher matching)
     std::vector<std::vector<cv::DMatch>> image_matches01_vec;
-    // std::vector<std::vector<cv::DMatch>> image_matches10_vec;
+    std::vector<std::vector<cv::DMatch>> image_matches10_vec;
     double des_dist_thresh = config_file["des_dist_thresh"];
-    bf_matcher->knnMatch(prev_image_descriptors, curr_image_descriptors, image_matches01_vec, 2);  // prev -> curr matches
-    // orb_matcher->knnMatch(prev_image_descriptors, curr_image_descriptors, image_matches01_vec, 2);  // prev -> curr matches
-    // orb_matcher->knnMatch(curr_image_descriptors, prev_image_descriptors, image_matches10_vec, 2);  // curr -> prev matches
+    // bf_matcher->knnMatch(prev_image_descriptors, curr_image_descriptors, image_matches01_vec, 2);  // prev -> curr matches
+    orb_matcher->knnMatch(prev_image_descriptors, curr_image_descriptors, image_matches01_vec, 2);  // prev -> curr matches
+    orb_matcher->knnMatch(curr_image_descriptors, prev_image_descriptors, image_matches10_vec, 2);  // curr -> prev matches
 
     // good matches
     std::vector<cv::DMatch> good_matches;
-    for (int i = 0; i < image_matches01_vec.size(); i++) {
-        if (image_matches01_vec[i][0].distance < image_matches01_vec[i][1].distance * 0.95) {
-            good_matches.push_back(image_matches01_vec[i][0]);
-        }
-    }
-
     // for (int i = 0; i < image_matches01_vec.size(); i++) {
-    //     if (image_matches01_vec[i][0].distance < image_matches01_vec[i][1].distance * des_dist_thresh) {  // prev -> curr match에서 좋은가?
-    //         int image1_keypoint_idx = image_matches01_vec[i][0].trainIdx;
-    //         if (image_matches10_vec[image1_keypoint_idx][0].distance < image_matches10_vec[image1_keypoint_idx][1].distance * des_dist_thresh) {  // curr -> prev match에서 좋은가?
-    //             if (image_matches01_vec[i][0].queryIdx == image_matches10_vec[image1_keypoint_idx][0].trainIdx)
-    //                 good_matches.push_back(image_matches01_vec[i][0]);
-    //         }
+    //     if (image_matches01_vec[i][0].distance < image_matches01_vec[i][1].distance * 0.95) {
+    //         good_matches.push_back(image_matches01_vec[i][0]);
     //     }
     // }
+
+    for (int i = 0; i < image_matches01_vec.size(); i++) {
+        if (image_matches01_vec[i][0].distance < image_matches01_vec[i][1].distance * des_dist_thresh) {  // prev -> curr match에서 좋은가?
+            int image1_keypoint_idx = image_matches01_vec[i][0].trainIdx;
+            if (image_matches10_vec[image1_keypoint_idx][0].distance < image_matches10_vec[image1_keypoint_idx][1].distance * des_dist_thresh) {  // curr -> prev match에서 좋은가?
+                if (image_matches01_vec[i][0].queryIdx == image_matches10_vec[image1_keypoint_idx][0].trainIdx)
+                    good_matches.push_back(image_matches01_vec[i][0]);
+            }
+        }
+    }
     // if (num_matches > -1) {
     //     std::sort(good_matches.begin(), good_matches.end());
     //     good_matches.resize(num_matches);
@@ -619,24 +628,13 @@ int main(int argc, char** argv) {
         image1_kps.push_back(curr_image_keypoints[match.trainIdx]);
     }
 
-    // // frame0
-    // std::vector<cv::Point2f> frame0_kp_pts_test = {cv::Point2f(89, 92), cv::Point2f(280, 148), cv::Point2f(437, 204), cv::Point2f(434, 161), cv::Point2f(495, 188), cv::Point2f(660, 150), cv::Point2f(709, 136), cv::Point2f(808, 127), cv::Point2f(913, 110), cv::Point2f(899, 294)};
-    // // frame1
-    // std::vector<cv::Point2f> frame1_kp_pts_test = {cv::Point2f(77, 92), cv::Point2f(275, 149), cv::Point2f(435, 207), cv::Point2f(435, 163), cv::Point2f(496, 190), cv::Point2f(664, 150), cv::Point2f(714, 136), cv::Point2f(817, 126), cv::Point2f(925, 109), cv::Point2f(933, 307)};
-    // // frame2
-    // std::vector<cv::Point2f> frame2_kp_pts_test = {cv::Point2f(65, 90), cv::Point2f(270, 149), cv::Point2f(434, 208), cv::Point2f(436, 163), cv::Point2f(498, 191), cv::Point2f(668, 151), cv::Point2f(720, 136), cv::Point2f(827, 125), cv::Point2f(939, 108), cv::Point2f(977, 324)};
-    // // frame3
-    // std::vector<cv::Point2f> frame3_kp_pts_test = {cv::Point2f(51, 88), cv::Point2f(265, 149), cv::Point2f(432, 210), cv::Point2f(437, 164), cv::Point2f(500, 193), cv::Point2f(672, 151), cv::Point2f(726, 136), cv::Point2f(838, 125), cv::Point2f(954, 106), cv::Point2f(1035, 346)};
-    // // frame4
-    // std::vector<cv::Point2f> frame4_kp_pts_test = {cv::Point2f(37, 85), cv::Point2f(260, 148), cv::Point2f(431, 211), cv::Point2f(439, 164), cv::Point2f(502, 193), cv::Point2f(677, 151), cv::Point2f(733, 136), cv::Point2f(851, 123), cv::Point2f(972, 104),    cv::Point2f(653, 124)};
-
     // draw keypoints
     // drawKeypoints(p_id, prev_image, image0_kp_pts, c_id, curr_image, image1_kp_pts, num_matches);
     drawKeypoints(p_id, prev_image, image0_kp_pts, c_id, curr_image, image1_kp_pts, good_matches.size());
 
     cv::Mat mask;
     // cv::Mat essential_mat = cv::findEssentialMat(frame2_kp_pts_test, frame1_kp_pts_test, intrinsic, cv::RANSAC, 0.999, 1.0, mask);
-    cv::Mat essential_mat = cv::findEssentialMat(image1_kp_pts, image0_kp_pts, intrinsic, cv::RANSAC, 0.999, 1.0, 500, mask);
+    cv::Mat essential_mat = cv::findEssentialMat(image0_kp_pts, image1_kp_pts, intrinsic, cv::RANSAC, 0.999, 1.0, 500, mask);
     std::cout << "essential matrix: \n" << essential_mat << std::endl;
 
     int essential_inlier = 0;
@@ -665,62 +663,21 @@ int main(int argc, char** argv) {
     //         + "_kp_matches(ransac).png", ransac_matches);
 
     //**========== 3. Motion estimation ==========**//
-    cv::Mat R0, t0;
-    // cv::recoverPose(essential_mat, frame2_kp_pts_test, frame1_kp_pts_test, intrinsic, R, t, mask);
-    int cv_recPos_inlier = cv::recoverPose(essential_mat, image1_kp_pts, image0_kp_pts, intrinsic, R0, t0, mask);
-    std::cout << "opencv recoverPose() info\n inliers: " << cv_recPos_inlier << std::endl;
-    std::cout << " rotation: \n" << R0 << std::endl;
-    std::cout << " translation: \n" << t0 << std::endl;
+    cv::Mat R, t;
+    cv::recoverPose(essential_mat, image0_kp_pts, image1_kp_pts, intrinsic, R, t, mask);
 
     Eigen::Matrix3d rotation_mat;
     Eigen::Vector3d translation_mat;
-    cv::cv2eigen(R0, rotation_mat);
-    cv::cv2eigen(t0, translation_mat);
 
-    relative_pose.linear() = rotation_mat;
-    relative_pose.translation() = translation_mat;
+    cv::cv2eigen(R, rotation_mat);
+    cv::cv2eigen(t, translation_mat);
+
+    relative_pose.linear() = rotation_mat.transpose();
+    relative_pose.translation() = - rotation_mat.transpose() * translation_mat;
+
+    std::cout << "relative pose:\n" << relative_pose.matrix() << std::endl;
+
     poses.push_back(relative_pose);
-
-
-    cv::Mat R1, R2, t;
-    cv::decomposeEssentialMat(essential_mat, R1, R2, t);
-
-    std::vector<Eigen::Isometry3d> rel_pose_candidates(4, Eigen::Isometry3d::Identity());
-    std::vector<int> valid_point_cnts(4, 0);
-    for (int i = 0; i < 4; i++) {
-        if (i == 0) {
-            cv::cv2eigen(R1, rotation_mat);
-            cv::cv2eigen(t, translation_mat);
-        }
-        else if (i == 1) {
-            cv::cv2eigen(R2, rotation_mat);
-            cv::cv2eigen(t, translation_mat);
-        }
-        else if (i == 2) {
-            cv::cv2eigen(R1, rotation_mat);
-            cv::cv2eigen(-t, translation_mat);
-        }
-        else if (i == 3) {
-            cv::cv2eigen(R2, rotation_mat);
-            cv::cv2eigen(-t, translation_mat);
-        }
-        rel_pose_candidates[i].linear() = rotation_mat;
-        rel_pose_candidates[i].translation() = translation_mat;
-        valid_point_cnts[i] = triangulate2_count(intrinsic, image0_kp_pts, image1_kp_pts, rel_pose_candidates[i], mask);
-        // poses.push_back(rel_poses[i]);
-    }
-    int max_cnt = 0, max_idx = 0;
-    for (int i = 0; i < 4; i++) {
-        std::cout << "cnt[" << i << "]: " << valid_point_cnts[i] << std::endl;
-        if (valid_point_cnts[i] > max_cnt) {
-            max_cnt = valid_point_cnts[i];
-            max_idx = i;
-        }
-    }
-    std::cout << "max idx: " << max_idx << std::endl;
-    // relative_pose = rel_pose_candidates[max_idx];
-    // poses.push_back(rel_pose_candidates[max_idx]);
-    // std::cout << "my pose: \n" << relative_pose.matrix() << std::endl;
 
     //**========== 4. Triangulation ==========**//
     std::vector<Eigen::Vector3d> landmarks;
@@ -728,6 +685,10 @@ int main(int argc, char** argv) {
     // triangulate2(intrinsic, image0_kp_pts, image1_kp_pts, relative_pose, landmarks);
     // triangulate2(intrinsic, image0_kp_pts, image1_kp_pts, relative_pose, mask, landmarks);
     triangulate_cv(intrinsic, image0_kp_pts, image1_kp_pts, relative_pose, landmarks);
+
+    // for (int i = 0; i < landmarks.size(); i++) {
+    //     std::cout << "cv::Point3d(" << landmarks[i].transpose() << ")" << std::endl;
+    // }
 
     // calculate reprojection error & save the images
     // double reproj_error = calcReprojectionError(intrinsic, p_id, prev_image, frame1_kp_pts_test, c_id, curr_image, frame2_kp_pts_test, mask, relative_pose, landmarks, 10);
