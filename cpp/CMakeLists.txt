@@ -38,6 +38,7 @@ add_executable(basic_filesystem basic_filesystem.cpp)
 add_executable(basic_vector basic_vector.cpp)
 add_executable(basic_map basic_map.cpp)
 add_executable(basic_random basic_random.cpp)
+add_executable(basic_enum_class_flag basic_enum_class_flag.cpp)
 # boost
 add_executable(boost_format boost_format.cpp)
 # eigen
@@ -110,6 +111,9 @@ target_link_libraries(sophus_basic Sophus::Sophus)
 # Pangolin files
 add_executable(pangolin_HelloPangolin pangolin_HelloPangolin.cpp)
 target_link_libraries(pangolin_HelloPangolin pango_display pango_python)
+
+add_executable(pangolin_ui pangolin_ui.cpp)
+target_link_libraries(pangolin_ui pango_display pango_python)
 
 # Applications
 add_executable(get_right_image get_right_image.cpp)
