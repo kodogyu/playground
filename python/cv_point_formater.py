@@ -4,7 +4,7 @@ if __name__ == "__main__":
     read_file_name = "files/frames_feature_info.csv"
     write_file_name = "files/cv_feature_format.txt"
 
-    num_feature = 22
+    num_feature = 20
 
     with open(write_file_name, 'w') as write_file:
         # csv_writer = csv.writer(write_file)
@@ -40,8 +40,8 @@ if __name__ == "__main__":
                     print(float_tuple_elem, int_tuple_elem)
 
                     # append to list
-                    cv_format.append(int_tuple_elem)
-                    # cv_format.append(float_tuple_elem)
+                    # cv_format.append(int_tuple_elem)
+                    cv_format.append(float_tuple_elem)
 
                 # make it to cv Point format
                 cv_format = ["cv::Point2f" + str(elem) for elem in cv_format]

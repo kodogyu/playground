@@ -14,7 +14,7 @@ FEATURE_IMAGE_PATCH_WINDOW_NAME = "image patch"
 PREV_IMAGE_WINDOW_NAME = "previous image"
 PREV_IMAGE_PATCH_WINDOW_NAME = "previous image lens"
 IMAGE_SCALE = 1
-GOAL_FEATURE_COUNT = 63
+GOAL_FEATURE_COUNT = 20
 
 # function to display the image patch
 # around the points clicked on the image
@@ -204,8 +204,9 @@ if __name__ == "__main__":
     # image_dir = "/home/kodogyu/shared_folder_local/kitti_100_frames/"
     # image_dir = "/home/kodogyu/Datasets/TUM/rgbd_dataset_freiburg3_checkerboard_large/rgb/"
 
-    total_frames = 2
-    for frame_idx in range(total_frames):
+    total_frames = 3
+    start_frame = 0
+    for frame_idx in range(start_frame, start_frame + total_frames):
         file = image_dir + f'{frame_idx:06}.png'
         file_list.append(file)
 
