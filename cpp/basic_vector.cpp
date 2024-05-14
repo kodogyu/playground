@@ -11,5 +11,9 @@ int main() {
         std::cout << elem << std::endl;
     }
 
+    std::cout << "----------" << std::endl;
+    std::cout << "a[0]: " << a[0] << std::endl;
+    std::cout << "a[-1]: " << a[-1] << std::endl;
+
     return 0;
 }
