@@ -13,6 +13,9 @@ cpp/vo_patch/reprojected_landmarks/*
 # python
 **/__pycache__
 
+# ipynb
+ipynb/data/*
+
 # rosbags
 test_rosbags/
 
