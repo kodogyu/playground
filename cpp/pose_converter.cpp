@@ -3,7 +3,7 @@
 #include <fstream>
 
 int main() {
-    std::string file_path = "/home/kodogyu/Datasets/TUM/rgbd_dataset_freiburg3_checkerboard_large/groundtruth.txt";
+    std::string file_path = "/home/kodogyu/swc_capstone/system_test/gt_trajectory.txt";
     std::cout << "pose file path: " << file_path << std::endl;
 
     std::ifstream gt_poses_file(file_path);
@@ -14,8 +14,8 @@ int main() {
     std::string line;
     std::vector<Eigen::Isometry3d> gt_poses;
 
-    int offset = 3;
-    int num_frames = 2;
+    int offset = 1;
+    int num_frames = 3;
     for (int l = 0; l < offset; l++) {
         std::getline(gt_poses_file, line);
     }
@@ -41,10 +41,13 @@ int main() {
                 >> qx >> qy >> qz >> qw;
 
         // Rotation
+        // with quaternion
         // Eigen::Matrix3d rotation_mat;
         // rotation_mat << r11, r12, r13,
         //                 r21, r22, r23,
         //                 r31, r32, r33;
+
+        // without quaternion
         Eigen::Quaterniond quaternion(qw, qx, qy, qz);
         Eigen::Matrix3d rotation_mat(quaternion);
 
@@ -60,8 +63,10 @@ int main() {
         gt_poses.push_back(gt_pose);
     }
 
-    Eigen::Isometry3d rel_pose = gt_poses[0].inverse() * gt_poses[1];
-    std::cout << "[relative pose]\n" << rel_pose.matrix() << std::endl;
+    int reference_frame = 0;
+    int target_frame = 2;
+    Eigen::Isometry3d rel_pose = gt_poses[reference_frame].inverse() * gt_poses[target_frame];
+    std::cout << "[relative pose from " << reference_frame << " -> " << target_frame << "]\n" << rel_pose.matrix() << std::endl;
 
     return 0;
 }
