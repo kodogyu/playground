@@ -1,6 +1,20 @@
 #include <iostream>
 #include <Eigen/Dense>
 #include <fstream>
+#include <vector>
+
+Eigen::Isometry3d rotatePose(Eigen::Isometry3d pose) {
+    Eigen::Matrix3d rotation;
+    rotation << 0, 1, 0,
+                0, 0, -1,
+                -1, 0, 0;
+
+    Eigen::Isometry3d rotation_transform = Eigen::Isometry3d::Identity();
+    rotation_transform.linear() = rotation;
+
+    Eigen::Isometry3d result = rotation_transform * pose;
+    return result;
+}
 
 int main() {
     std::string file_path = "/home/kodogyu/swc_capstone/system_test/gt_trajectory.txt";
@@ -15,7 +29,7 @@ int main() {
     std::vector<Eigen::Isometry3d> gt_poses;
 
     int offset = 1;
-    int num_frames = 3;
+    int num_frames = 5;
     for (int l = 0; l < offset; l++) {
         std::getline(gt_poses_file, line);
     }
@@ -55,7 +69,7 @@ int main() {
         Eigen::Vector3d translation_mat;
         translation_mat << t1, t2, t3;
 
-        Eigen::Isometry3d gt_pose;
+        Eigen::Isometry3d gt_pose = Eigen::Isometry3d::Identity();
         gt_pose.linear() = rotation_mat;
         gt_pose.translation() = translation_mat;
 
@@ -67,6 +81,22 @@ int main() {
     int target_frame = 2;
     Eigen::Isometry3d rel_pose = gt_poses[reference_frame].inverse() * gt_poses[target_frame];
     std::cout << "[relative pose from " << reference_frame << " -> " << target_frame << "]\n" << rel_pose.matrix() << std::endl;
+
+
+    // rotate poses
+    std::cout << "---------- rotate poses ----------" << std::endl;
+    Eigen::Isometry3d rotated_pose;
+    std::vector<Eigen::Isometry3d> rotated_poses;
+
+    for (int i = 0; i < gt_poses.size(); i++) {
+        rotated_pose = rotatePose(gt_poses[i]);
+        std::cout << "[" << i << "]\n" << rotated_pose.matrix() << std::endl;
+
+        rotated_poses.push_back(rotated_pose);
+    }
+
+    Eigen::Isometry3d rel_pose2 = rotated_poses[reference_frame].inverse() * rotated_poses[target_frame];
+    std::cout << "[relative pose from " << reference_frame << " -> " << target_frame << "]\n" << rel_pose2.matrix() << std::endl;
 
     return 0;
 }
