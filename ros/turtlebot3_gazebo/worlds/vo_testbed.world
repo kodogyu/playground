@@ -11,7 +11,7 @@
         <linear>0.01</linear>
         <quadratic>0.001</quadratic>
       </attenuation>
-      <direction>-0.5 0.1 -0.9</direction>
+      <direction>0.5 0.1 -0.9</direction>
       <spot>
         <inner_angle>0</inner_angle>
         <outer_angle>0</outer_angle>
@@ -88,15 +88,25 @@
       <heading_deg>0</heading_deg>
     </spherical_coordinates>
     <state world_name='default'>
-      <sim_time>526 665000000</sim_time>
-      <real_time>72 499361255</real_time>
-      <wall_time>1715961628 950839862</wall_time>
-      <iterations>72456</iterations>
-      <model name='checkerboard_plane'>
-        <pose>-5.23543 -1.04442 1 -1.5708 3e-06 -0.785402</pose>
+      <sim_time>4945 56000000</sim_time>
+      <real_time>42 463682664</real_time>
+      <wall_time>1716133288 566161378</wall_time>
+      <iterations>42432</iterations>
+      <model name='checkerboard_mask_box'>
+        <pose>9.30174 -2.69827 1 0 0 -0.785398</pose>
         <scale>1 1 1</scale>
         <link name='link'>
-          <pose>-5.23543 -1.04442 1 -1.5708 3e-06 -0.785402</pose>
+          <pose>9.30174 -2.69827 1 0 0 -0.785398</pose>
+          <velocity>0 0 0 0 -0 0</velocity>
+          <acceleration>0 0 0 0 -0 0</acceleration>
+          <wrench>0 0 0 0 -0 0</wrench>
+        </link>
+      </model>
+      <model name='checkerboard_plane'>
+        <pose>10 -2 1 -1.57079 4e-06 0.785394</pose>
+        <scale>1 1 1</scale>
+        <link name='link'>
+          <pose>10 -2 1 -1.57079 4e-06 0.785394</pose>
           <velocity>0 0 0 0 -0 0</velocity>
           <acceleration>0 0 0 0 -0 0</acceleration>
           <wrench>0 0 0 0 -0 0</wrench>
@@ -113,13 +123,13 @@
         </link>
       </model>
       <model name='red_box'>
-        <pose>-4.13499 1.98644 0.499995 0 1e-05 0</pose>
+        <pose>4.05689 1.98645 0.499995 0 -1e-05 0</pose>
         <scale>1 1 1</scale>
         <link name='link'>
-          <pose>-4.13499 1.98644 0.499995 0 1e-05 0</pose>
+          <pose>4.05689 1.98645 0.499995 0 -1e-05 0</pose>
           <velocity>0 0 0 0 -0 0</velocity>
-          <acceleration>0.010609 -0.006191 -9.78232 0.012424 0.021214 1.9e-05</acceleration>
-          <wrench>0.010609 -0.006191 -9.78232 0 -0 0</wrench>
+          <acceleration>-0.010609 -0.006191 -9.78232 0.012424 -0.021214 -1.9e-05</acceleration>
+          <wrench>-0.010609 -0.006191 -9.78232 0 -0 0</wrench>
         </link>
       </model>
       <light name='sun'>
@@ -246,10 +256,57 @@
     </model>
     <gui fullscreen='0'>
       <camera name='user_camera'>
-        <pose>10.4942 0.653458 4.82668 -0 0.291643 3.0802</pose>
+        <pose>1.19272 7.60694 7.62391 -0 0.493417 -1.05175</pose>
         <view_controller>orbit</view_controller>
         <projection_type>perspective</projection_type>
       </camera>
     </gui>
+    <model name='checkerboard_mask_box'>
+      <link name='link'>
+        <inertial>
+          <mass>1</mass>
+          <inertia>
+            <ixx>0.166667</ixx>
+            <ixy>0</ixy>
+            <ixz>0</ixz>
+            <iyy>0.166667</iyy>
+            <iyz>0</iyz>
+            <izz>0.166667</izz>
+          </inertia>
+          <pose>0 0 0 0 -0 0</pose>
+        </inertial>
+        <self_collide>0</self_collide>
+        <enable_wind>0</enable_wind>
+        <kinematic>0</kinematic>
+        <pose>0 0 0 0 -0 0</pose>
+        <gravity>0</gravity>
+        <visual name='visual'>
+          <geometry>
+            <box>
+              <size>0.1 0.5 2</size>
+            </box>
+          </geometry>
+          <material>
+            <script>
+              <name>Gazebo/Grey</name>
+              <uri>file://media/materials/scripts/gazebo.material</uri>
+            </script>
+            <shader type='pixel'>
+              <normal_map>__default__</normal_map>
+            </shader>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.7 0.7 0.7 1</diffuse>
+            <specular>0.01 0.01 0.01 1</specular>
+            <emissive>0 0 0 1</emissive>
+          </material>
+          <pose>0 0 0 0 -0 0</pose>
+          <transparency>0</transparency>
+          <cast_shadows>1</cast_shadows>
+        </visual>
+      </link>
+      <static>0</static>
+      <allow_auto_disable>1</allow_auto_disable>
+      <pose>6.68214 -1.15446 0 0 -0 0</pose>
+    </model>
   </world>
 </sdf>
