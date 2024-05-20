@@ -4,16 +4,72 @@
 #include <vector>
 
 Eigen::Isometry3d rotatePose(Eigen::Isometry3d pose) {
-    Eigen::Matrix3d rotation;
-    rotation << 0, 1, 0,
-                0, 0, -1,
-                -1, 0, 0;
+    Eigen::Matrix3d system_R_sim;
+    system_R_sim << 0, -1, 0,
+                    0, 0, -1,
+                    1, 0, 0;
 
     Eigen::Isometry3d rotation_transform = Eigen::Isometry3d::Identity();
-    rotation_transform.linear() = rotation;
+    rotation_transform.linear() = system_R_sim;
 
-    Eigen::Isometry3d result = rotation_transform * pose;
+    Eigen::Isometry3d result;
+    result.translation() = system_R_sim * pose.translation();
+
     return result;
+}
+
+void writeToFile_TUM_format(std::string file_path, std::vector<Eigen::Isometry3d> poses) {
+    std::cout << "writeToFile_TUM_format" << std::endl;
+
+    std::ofstream output_file(file_path);
+
+    output_file << "# translation: x y z, orientation: x y z w" << std::endl;
+
+    int num = 0;
+    for (const Eigen::Isometry3d& pose : poses) {
+        std::cout << num << std::endl;
+
+        // #
+        output_file << num << " ";
+
+        // translation
+        for (int i = 0; i < 3; i++) {
+            output_file << pose.translation().coeff(i) << " ";
+        }
+
+        // orientation (quaternion)
+        Eigen::Quaterniond quaternion(pose.rotation());
+        output_file << quaternion.x() << " " << quaternion.y() << " " << quaternion.z() << " " << quaternion.w() << " " << std::endl;
+
+        num++;
+    }
+
+    output_file.close();
+}
+
+void writeToFile_KITTI_format(std::string file_path, std::vector<Eigen::Isometry3d> poses) {
+    std::cout << "writeToFile_KITTI_format" << std::endl;
+
+    std::ofstream output_file(file_path);
+
+    output_file << "r11 r12 r13 t1 r21 r22 r23 t2 r31 r32 r33 t3" << std::endl;
+
+    int num = 0;
+    for (const Eigen::Isometry3d& pose : poses) {
+        std::cout << num << std::endl;
+
+        // orientation (rotation matrix), translation
+        for (int r = 0; r < 3; r++) {
+            for (int c = 0; c < 4; c++) {
+                output_file << pose.matrix().coeff(r, c) << " ";
+            }
+        }
+        output_file << std::endl;
+
+        num++;
+    }
+
+    output_file.close();
 }
 
 int main() {
@@ -97,6 +153,10 @@ int main() {
 
     Eigen::Isometry3d rel_pose2 = rotated_poses[reference_frame].inverse() * rotated_poses[target_frame];
     std::cout << "[relative pose from " << reference_frame << " -> " << target_frame << "]\n" << rel_pose2.matrix() << std::endl;
+
+    // write to file
+    writeToFile_TUM_format("/home/kodogyu/swc_capstone/system_test/rotated_gt_trajectory_TUM_format.txt", rotated_poses);
+    writeToFile_KITTI_format("/home/kodogyu/swc_capstone/system_test/rotated_gt_trajectory_KITTI_format.txt", rotated_poses);
 
     return 0;
 }
