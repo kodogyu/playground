@@ -50,7 +50,7 @@ gt_path: /home/kodogyu/Datasets/KITTI/dataset/poses/00.txt
 # gt_path: /home/kodogyu/Datasets/TUM/rgbd_dataset_freiburg3_checkerboard_large/groundtruth.txt
 
 #========== Feature extraction ==========#
-num_features: 1000
+num_features: 500
 
 #========== Feature matching ==========#
 des_dist_thresh: 0.6
@@ -64,14 +64,14 @@ optimizer_verbose: 0
 #========== VO patch ==========#
 # prev_frame: vo_patch/source_frames/000000.png
 # curr_frame: vo_patch/source_frames/000001.png
-prev_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000000.png
-curr_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000001.png
+prev_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000001.png
+curr_frame: /home/kodogyu/Datasets/KITTI/dataset/sequences/00/image_0/000002.png
 # prev_frame: /home/kodogyu/Datasets/TUM/rgbd_dataset_freiburg3_checkerboard_large/rgb/1341835195.545827.png
 # curr_frame: /home/kodogyu/Datasets/TUM/rgbd_dataset_freiburg3_checkerboard_large/rgb/1341835195.577840.png
 # prev_frame: /home/kodogyu/github_repos/sfm/data/nutellar2/nutella13.jpg
 # curr_frame: /home/kodogyu/github_repos/sfm/data/nutellar2/nutella14.jpg
 
-prev_frame_idx: 0
+prev_frame_idx: 1
 
 # # KITTI-360
 # prev_frame: /home/kodogyu/Datasets/KITTI-360/data_2d_raw/2013_05_28_drive_0000_sync/image_00/data_rgb/0000000000.png
@@ -80,8 +80,3 @@ prev_frame_idx: 0
 # num_matches:
 #   -1 : all matches
 num_matches: -1
-
-filter_keypoints: 0
-patch_width: 100
-patch_height: 100
-kps_per_patch: 100

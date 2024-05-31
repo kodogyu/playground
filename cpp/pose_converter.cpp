@@ -12,7 +12,8 @@ Eigen::Isometry3d rotatePose(Eigen::Isometry3d pose) {
     Eigen::Isometry3d rotation_transform = Eigen::Isometry3d::Identity();
     rotation_transform.linear() = system_R_sim;
 
-    Eigen::Isometry3d result;
+    Eigen::Isometry3d result = Eigen::Isometry3d::Identity();
+    result.linear() = pose.rotation();
     result.translation() = system_R_sim * pose.translation();
 
     return result;
@@ -73,6 +74,7 @@ void writeToFile_KITTI_format(std::string file_path, std::vector<Eigen::Isometry
 }
 
 int main() {
+    //! 원본 trajectory 파일
     std::string file_path = "/home/kodogyu/swc_capstone/system_test/gt_trajectory.txt";
     std::cout << "pose file path: " << file_path << std::endl;
 
@@ -84,8 +86,10 @@ int main() {
     std::string line;
     std::vector<Eigen::Isometry3d> gt_poses;
 
+    //! 시작 프레임, 총 프레임 수
     int offset = 1;
-    int num_frames = 5;
+    int num_frames = 12;
+
     for (int l = 0; l < offset; l++) {
         std::getline(gt_poses_file, line);
     }
