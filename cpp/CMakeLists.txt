@@ -13,6 +13,8 @@ find_package(OpenCV 4 REQUIRED)   # -DOpenCV_DIR=/home/kodogyu/opencv/build
 find_package(Sophus REQUIRED)
 # find_package(cv_bridge REQUIRED)
 find_package(Pangolin 0.8 REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LIBZIP REQUIRED libzip)
 
 message(STATUS "opencv version: ${OpenCV_VERSION}")
 message(STATUS "gtsam path: ${GTSAM_DIR}")
@@ -24,7 +26,10 @@ include_directories(
     ${OpenCV_INCLUDE_DIRS}
     # ${cv_bridge_INCLUDE_DIRS}
     ${Pangolin_INCLUDE_DIRS}
+    ${LIBZIP_INCLUDE_DIRS}
 )
+
+link_directories(${LIBZIP_LIBRARY_DIRS})
 
 ##=========================EXECUTABLES=========================##
 # STL files
@@ -104,6 +109,10 @@ target_link_libraries(new ${OpenCV_LIBS})
 
 add_executable(opencv_vis3d opencv_vis3d.cpp)
 target_link_libraries(opencv_vis3d ${OpenCV_LIBS})
+
+
+add_executable(opencv_img_from_zip opencv_img_from_zip.cpp)
+target_link_libraries(opencv_img_from_zip ${OpenCV_LIBS} ${LIBZIP_LIBRARIES})
 
 # Sophus files
 add_executable(sophus_basic sophus_basic.cpp)
