@@ -10,6 +10,11 @@ cpp/vo_patch/inter_frames/*
 cpp/vo_patch/intra_frames/*
 cpp/vo_patch/reprojected_landmarks/*
 
+# orbslam3_keypoint
+orbslam3_keypoint/descriptors/
+orbslam3_keypoint/keypoints/
+orbslam3_keypoint/images/
+
 # python
 **/__pycache__
 
