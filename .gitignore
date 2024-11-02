@@ -27,3 +27,10 @@ visual_odometry/build/
 visual_odometry/lib/
 visual_odometry/output_logs/
 visual_odometry/bin/
+
+# Machine Learning
+ml/datasets
+ml/checkpoints/
+ml/*/checkpoints/
+ml/wandb/
+ml/*/wandb
