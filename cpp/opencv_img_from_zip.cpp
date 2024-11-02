@@ -4,7 +4,8 @@
 
 int main() {
     // ZIP 파일 열기
-    const char *zip_filename = "/home/kodogyu/Downloads/images.zip";
+    // const char *zip_filename = "/home/kodogyu/Downloads/images.zip";
+    const char *zip_filename = "/media/kodogyu/T7 Shield/AIR360_Dataset/Real_Use_Dataset_08-09-10/1007_art_parking/frames_split/0/1007-art_parking-0-fisheye.zip";
     int err = 0;
     zip *z = zip_open(zip_filename, 0, &err);
     if (z == nullptr) {
@@ -16,7 +17,7 @@ int main() {
     }
 
     // ZIP 파일 내 이미지 파일 열기
-    const char *image_filename = "0000.png";
+    const char *image_filename = "origin1/0000.png";
     struct zip_stat st;
     zip_stat_init(&st);
     zip_stat(z, image_filename, 0, &st);

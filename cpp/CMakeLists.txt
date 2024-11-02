@@ -45,6 +45,7 @@ add_executable(basic_map basic_map.cpp)
 add_executable(basic_random basic_random.cpp)
 add_executable(basic_enum_class_flag basic_enum_class_flag.cpp)
 add_executable(basic_gaussian_noise basic_gaussian_noise.cpp)
+add_executable(basic_csv_file basic_csv_file.cpp)
 # boost
 add_executable(boost_format boost_format.cpp)
 # eigen
