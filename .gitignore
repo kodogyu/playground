@@ -1,33 +1,6 @@
 # vscode
 .vscode/
 
-# cpp
-cpp/build/
-cpp/files/visual_odometry_example.csv
-cpp/images/vo_logs/*
-cpp/vo_patch/filtered_keypoints/*
-cpp/vo_patch/inter_frames/*
-cpp/vo_patch/intra_frames/*
-cpp/vo_patch/reprojected_landmarks/*
-
-# python
-**/__pycache__
-
-# ipynb
-ipynb/data/*
-
-# rosbags
-test_rosbags/
-
-# test library
-simple_lib/build
-
-# visual odometry
-visual_odometry/build/
-visual_odometry/lib/
-visual_odometry/output_logs/
-visual_odometry/bin/
-
 # Machine Learning
 ml/datasets
 ml/checkpoints/

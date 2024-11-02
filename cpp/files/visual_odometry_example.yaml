@@ -1,5 +1,0 @@
-%YAML:1.0
-
-num_frames: 12
-left_images_dir: /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/left_frames
-right_images_dir: /home/kodogyu/playground/test_image_sequences/l515_aligned_vertical_stereo_kf/right_frames
