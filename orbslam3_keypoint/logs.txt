@@ -1,0 +1,296 @@
+kodogyu@kodogyu-desktop:~/github_repos/ORB_SLAM3$ ./Examples/Stereo-Inertial/stereo_inertial_pair360_zip_mask Vocabulary/ORBvoc.txt Examples/Stereo-Inertial/PAIR360.yaml /media/kodogyu/T7\ Shield/AIR360_Dataset/Real_Use_Dataset_08-09-10/0924_Woojungwon/frames_split/0/0924-1st_dorm-0-fisheye.zip /media/kodogyu/T7\ Shield/AIR360_Dataset/Real_Use_Dataset_08-09-10/0924_Woojungwon/frames_split/0/0924-1st_dorm-0-fisheye.zip ~/Datasets/PAIR360/0924_woojungwon/fisheye/times-GYRO.txt /media/kodogyu/T7\ Shield/AIR360_Dataset/Real_Use_Dataset_08-09-10/0924_Woojungwon/frames_split/0/GYRO.csv 
+num_seq = 1
+Loading images for sequence 0.../media/kodogyu/T7 Shield/AIR360_Dataset/Real_Use_Dataset_08-09-10/0924_Woojungwon/frames_split/0/0924-1st_dorm-0-fisheye.zip
+/media/kodogyu/T7 Shield/AIR360_Dataset/Real_Use_Dataset_08-09-10/0924_Woojungwon/frames_split/0/0924-1st_dorm-0-fisheye.zip
+/home/kodogyu/Datasets/PAIR360/0924_woojungwon/fisheye/times-GYRO.txt
+Total images: 1737
+Total cam ts: 1737
+first cam ts: 1.69553e+09
+LOADED!
+Loading IMU for sequence 0...Total IMU meas: 1737
+first IMU ts: 1.69553e+09
+LOADED!
+
+-------
+
+ORB-SLAM3 Copyright (C) 2017-2020 Carlos Campos, Richard Elvira, Juan J. Gómez, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
+ORB-SLAM2 Copyright (C) 2014-2016 Raúl Mur-Artal, José M.M. Montiel and Juan D. Tardós, University of Zaragoza.
+This program comes with ABSOLUTELY NO WARRANTY;
+This is free software, and you are welcome to redistribute it
+under certain conditions. See LICENSE.txt.
+
+Input sensor was set to: Stereo-Inertial
+Loading settings from Examples/Stereo-Inertial/PAIR360.yaml
+	-Loaded camera 1
+	-Loaded camera 2
+	-Loaded image info
+IMU.InsertKFsWhenLost optional parameter does not exist...
+	-Loaded IMU calibration
+	-Loaded ORB settings
+	-Loaded viewer settings
+System.LoadAtlasFromFile optional parameter does not exist...
+System.SaveAtlasToFile optional parameter does not exist...
+	-Loaded Atlas settings
+System.thFarPoints optional parameter does not exist...
+	-Loaded misc parameters
+----------------------------------
+SLAM settings: 
+	-Camera 1 parameters (Kannala-Brandt): [ 1211.950439453125 1209.8758544921875 1433.866943359375 1913.2774658203125 -0.030260881409049034 0.010293006896972656 -0.0075891981832683086 0.0015237488551065326 ]
+	-Camera 2 parameters (Kannala-Brandt: [ 1214.06201171875 1211.6834716796875 1420.110107421875 1929.7000732421875 -0.030260881409049034 0.010293006896972656 -0.0075891981832683086 0.0015237488551065326 ]
+	-Original image size: [ 2880 , 3840 ]
+	-Current image size: [ 720 , 960 ]
+	-Camera 1 parameters after resize: [  302.98760986328125 302.46896362304688 358.46673583984375 478.31936645507812 -0.030260881409049034 0.010293006896972656 -0.0075891981832683086 0.0015237488551065326 ]
+	-Camera 2 parameters after resize: [  303.5155029296875 302.92086791992188 355.02752685546875 482.42501831054688 -0.030260881409049034 0.010293006896972656 -0.0075891981832683086 0.0015237488551065326 ]
+	-Sequence FPS: 10
+	-Stereo baseline: 0.068330913782119751
+	-Stereo depth threshold : 70
+	-Camera 1 overlapping area: [ 360 , 720 ]
+	-Camera 2 overlapping area: [ 0 , 360 ]
+	-Gyro noise: 0.00013132327876519412
+	-Accelerometer noise: 0.0023551727645099163
+	-Gyro walk: 4.0733564674155787e-05
+	-Accelerometer walk: 0.00036028833710588515
+	-IMU frequency: 10
+	-Features per image: 30000
+	-ORB scale factor: 1.2000000476837158
+	-ORB number of scales: 15
+	-Initial FAST threshold: 20
+	-Min FAST threshold: 7
+
+
+Loading ORB Vocabulary. This could take a while...
+Vocabulary loaded!
+
+Initialization of Atlas from scratch 
+Creation of new map with id: 0
+Creation of new map with last KF id: 0
+Seq. Name: 
+Tracking: new parameter loader.
+There are 2 cameras in the atlas
+Camera 0 is fisheye
+Camera 2 is fisheye
+Starting the Viewer
+
+New Frame Created
+keypoint drawn. /home/kodogyu/Pictures/imageLeft_0.png
+number of Left keypoint [frame 0] 21543. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameLeft0.txt
+number of Right keypoint [frame 0] 21645. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameRight0.txt
+Nleft: 21543, Nright: 21645, N: 43188
+Frame::ComputeStereoFishEyeMatches: nMatches: 46
+
+TRACK: New Frame.
+Track: Preintegrating IMU
+Not IMU data in mlQueueImuData!!
+StereoInitialization: mCurrentFrame.N: 43188
+not IMU meas
+TracK: After initialization, mState: 1
+
+New Frame Created
+keypoint drawn. /home/kodogyu/Pictures/imageLeft_1.png
+number of Left keypoint [frame 1] 21428. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameLeft1.txt
+number of Right keypoint [frame 1] 21600. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameRight1.txt
+Nleft: 21428, Nright: 21600, N: 43028
+Frame::ComputeStereoFishEyeMatches: nMatches: 44
+
+TRACK: New Frame.
+Track: Preintegrating IMU
+Preintegration is finished!! 
+StereoInitialization: mCurrentFrame.N: 43028
+not IMU meas
+TracK: After initialization, mState: 1
+
+New Frame Created
+keypoint drawn. /home/kodogyu/Pictures/imageLeft_2.png
+number of Left keypoint [frame 2] 21600. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameLeft2.txt
+number of Right keypoint [frame 2] 21622. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameRight2.txt
+Nleft: 21600, Nright: 21622, N: 43222
+Frame::ComputeStereoFishEyeMatches: nMatches: 34
+
+TRACK: New Frame.
+Track: Preintegrating IMU
+Preintegration is finished!! 
+StereoInitialization: mCurrentFrame.N: 43222
+First KF:0; Map init KF:0
+StereoInitialization: mCurrentFrame.Nleft: 21600
+StereoInitialization: mCurrentFrame.mvLeftToRightMatch.size(): 21600
+New Map created with 34 points
+Active map: 0
+TracK: After initialization, mState: 2
+Track: mState: 2
+LM: Initializing IMU
+LM: Keyframes in Atlas (1) is smaller than nMinKF (10)
+
+New Frame Created
+keypoint drawn. /home/kodogyu/Pictures/imageLeft_3.png
+number of Left keypoint [frame 3] 21643. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameLeft3.txt
+number of Right keypoint [frame 3] 21681. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameRight3.txt
+Nleft: 21643, Nright: 21681, N: 43324
+Frame::ComputeStereoFishEyeMatches: nMatches: 41
+
+TRACK: New Frame.
+Track: Preintegrating IMU
+Preintegration is finished!! 
+TRACK: Track with respect to the reference KF 
+TLM: mnMatchesInliers: 39
+TLM: mCurrentFrame.mnId: 3mnLastRelocFrameId: 0mMaxFrames: 10
+Fail to track local map!
+Track lost for less than one second...
+IMU is not or recently initialized. Reseting active map...
+Track: mState: 3
+Active map Reseting
+Reseting Local Mapper...
+LM: Active map reset recieved
+LM: Active map reset, waiting...
+LM: Reseting current map in Local Mapping...
+LM: End reseting Local Mapping...
+LM: Reset free the mutex
+LM: Active map reset, Done!!!
+done
+Reseting Loop Closing...
+done
+Reseting Database
+done
+mnFirstFrameId = 2
+mnInitialFrameId = 0
+2 Frames set to lost
+   End reseting! 
+
+New Frame Created
+keypoint drawn. /home/kodogyu/Pictures/imageLeft_4.png
+number of Left keypoint [frame 4] 21593. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameLeft4.txt
+number of Right keypoint [frame 4] 21810. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameRight4.txt
+Nleft: 21593, Nright: 21810, N: 43403
+Frame::ComputeStereoFishEyeMatches: nMatches: 39
+
+TRACK: New Frame.
+Track: Preintegrating IMU
+Preintegration is finished!! 
+StereoInitialization: mCurrentFrame.N: 43403
+not IMU meas
+TracK: After initialization, mState: 1
+
+New Frame Created
+keypoint drawn. /home/kodogyu/Pictures/imageLeft_5.png
+number of Left keypoint [frame 5] 21742. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameLeft5.txt
+number of Right keypoint [frame 5] 21739. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameRight5.txt
+Nleft: 21742, Nright: 21739, N: 43481
+Frame::ComputeStereoFishEyeMatches: nMatches: 48
+
+TRACK: New Frame.
+Track: Preintegrating IMU
+Preintegration is finished!! 
+StereoInitialization: mCurrentFrame.N: 43481
+First KF:1; Map init KF:0
+StereoInitialization: mCurrentFrame.Nleft: 21742
+StereoInitialization: mCurrentFrame.mvLeftToRightMatch.size(): 21742
+New Map created with 48 points
+Active map: 0
+TracK: After initialization, mState: 2
+Track: mState: 2
+LM: Initializing IMU
+LM: Keyframes in Atlas (1) is smaller than nMinKF (10)
+
+New Frame Created
+keypoint drawn. /home/kodogyu/Pictures/imageLeft_6.png
+number of Left keypoint [frame 6] 22023. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameLeft6.txt
+number of Right keypoint [frame 6] 21868. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameRight6.txt
+Nleft: 22023, Nright: 21868, N: 43891
+Frame::ComputeStereoFishEyeMatches: nMatches: 49
+
+TRACK: New Frame.
+Track: Preintegrating IMU
+Preintegration is finished!! 
+TRACK: Track with respect to the reference KF 
+TLM: mnMatchesInliers: 46
+TLM: mCurrentFrame.mnId: 6mnLastRelocFrameId: 3mMaxFrames: 10
+Fail to track local map!
+Track lost for less than one second...
+IMU is not or recently initialized. Reseting active map...
+Track: mState: 3
+Active map Reseting
+Reseting Local Mapper...
+LM: Active map reset recieved
+LM: Active map reset, waiting...
+LM: Reseting current map in Local Mapping...
+LM: End reseting Local Mapping...
+LM: Reset free the mutex
+LM: Active map reset, Done!!!
+done
+Reseting Loop Closing...
+done
+Reseting Database
+done
+mnFirstFrameId = 5
+mnInitialFrameId = 3
+4 Frames set to lost
+   End reseting! 
+
+New Frame Created
+keypoint drawn. /home/kodogyu/Pictures/imageLeft_7.png
+number of Left keypoint [frame 7] 22145. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameLeft7.txt
+number of Right keypoint [frame 7] 21964. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameRight7.txt
+Nleft: 22145, Nright: 21964, N: 44109
+Frame::ComputeStereoFishEyeMatches: nMatches: 30
+
+TRACK: New Frame.
+Track: Preintegrating IMU
+Preintegration is finished!! 
+StereoInitialization: mCurrentFrame.N: 44109
+not IMU meas
+TracK: After initialization, mState: 1
+
+New Frame Created
+keypoint drawn. /home/kodogyu/Pictures/imageLeft_8.png
+number of Left keypoint [frame 8] 22269. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameLeft8.txt
+number of Right keypoint [frame 8] 22062. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameRight8.txt
+Nleft: 22269, Nright: 22062, N: 44331
+Frame::ComputeStereoFishEyeMatches: nMatches: 31
+
+TRACK: New Frame.
+Track: Preintegrating IMU
+Preintegration is finished!! 
+StereoInitialization: mCurrentFrame.N: 44331
+First KF:2; Map init KF:1
+StereoInitialization: mCurrentFrame.Nleft: 22269
+StereoInitialization: mCurrentFrame.mvLeftToRightMatch.size(): 22269
+New Map created with 31 points
+Active map: 0
+TracK: After initialization, mState: 2
+Track: mState: 2
+LM: Initializing IMU
+LM: Keyframes in Atlas (1) is smaller than nMinKF (10)
+
+New Frame Created
+keypoint drawn. /home/kodogyu/Pictures/imageLeft_9.png
+number of Left keypoint [frame 9] 22307. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameLeft9.txt
+number of Right keypoint [frame 9] 22061. /home/kodogyu/github_repos/ORB_SLAM3/my_dir/keypoints/frameRight9.txt
+Nleft: 22307, Nright: 22061, N: 44368
+Frame::ComputeStereoFishEyeMatches: nMatches: 37
+
+TRACK: New Frame.
+Track: Preintegrating IMU
+Preintegration is finished!! 
+TRACK: Track with respect to the reference KF 
+TLM: mnMatchesInliers: 31
+TLM: mCurrentFrame.mnId: 9mnLastRelocFrameId: 6mMaxFrames: 10
+Fail to track local map!
+Track lost for less than one second...
+IMU is not or recently initialized. Reseting active map...
+Track: mState: 3
+Active map Reseting
+Reseting Local Mapper...
+LM: Active map reset recieved
+LM: Active map reset, waiting...
+LM: Reseting current map in Local Mapping...
+LM: End reseting Local Mapping...
+LM: Reset free the mutex
+LM: Active map reset, Done!!!
+done
+Reseting Loop Closing...
+done
+Reseting Database
+done
+mnFirstFrameId = 8
+mnInitialFrameId = 6
+6 Frames set to lost
+   End reseting! 
