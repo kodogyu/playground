@@ -29,5 +29,8 @@ visual_odometry/output_logs/
 visual_odometry/bin/
 
 # Machine Learning
-ai/checkpoints/
-ai/wandb/
+ml/datasets
+ml/checkpoints/
+ml/*/checkpoints/
+ml/wandb/
+ml/*/wandb
